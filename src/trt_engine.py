@@ -66,6 +66,9 @@ class OrpheusModelTRT:
                     trust_remote_code=True,
                     max_beam_width=self.max_beam_width,
                     max_num_tokens=self.max_num_tokens,
+                    # Force single GPU usage to avoid MPI issues
+                    tensor_parallel_size=1,
+                    pipeline_parallel_size=1,
                     kv_cache_config=KvCacheConfig(
                         free_gpu_memory_fraction=self.free_gpu_memory_fraction,
                         # max_tokens=self.max_kv_cache_tokens,

@@ -58,8 +58,11 @@ VOICE_DETAILS: List[VoiceDetail] = []
 async def lifespan(app: FastAPI):
     """Initializes the TTS engine on application startup."""
     global engine, VOICE_DETAILS
+    logger.info("initializing Orpheus")
+
     engine = OrpheusModelTRT()
 
+    logger.info("Orpheus initialized") 
     # Dynamically generate voice details from the loaded engine
     VOICE_DETAILS = [
         VoiceDetail(
