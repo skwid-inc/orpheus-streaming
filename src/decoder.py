@@ -13,30 +13,6 @@ model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
 # Check if CUDA is available and set device accordingly
 snac_device = "cuda" if torch.cuda.is_available() else "cpu"
 model = model.to(snac_device)
-if snac_device == "cuda":
-    torch.backends.cudnn.benchmark = True
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
-    model = model.half()
-    # Warmup to initialize kernels/caches for steady-state throughput
-    try:
-        with torch.inference_mode():
-            _warm_frames = 4
-            _warm_tokens = torch.zeros(_warm_frames * 7, dtype=torch.int32, device=snac_device)
-            _warm_tokens[::7] = 1
-            _warm_tokens[1::7] = 1
-            _warm_tokens[2::7] = 1
-            _warm_tokens[3::7] = 1
-            _warm_tokens[4::7] = 1
-            _warm_tokens[5::7] = 1
-            _warm_tokens[6::7] = 1
-            _warm_frames_view = _warm_tokens.view(_warm_frames, 7)
-            _codes_0 = _warm_frames_view[:, 0].view(1, _warm_frames)
-            _codes_1 = _warm_frames_view[:, [1, 4]].reshape(1, _warm_frames * 2)
-            _codes_2 = _warm_frames_view[:, [2, 3, 5, 6]].reshape(1, _warm_frames * 4)
-            _ = model.decode([_codes_0, _codes_1, _codes_2])
-    except Exception:
-        pass
 
 # Local cache to avoid repeated parsing of the same token strings
 _token_id_cache = {}
@@ -99,14 +75,24 @@ def convert_to_audio(multiframe, count):
         return None
     
     num_frames = len(multiframe) // 7
-
-    # Single bulk tensor creation + vectorized slicing avoids per-element GPU writes
-    tokens_tensor = torch.tensor(multiframe[: num_frames * 7], dtype=torch.int32, device=snac_device)
-    frames = tokens_tensor.view(num_frames, 7)
-
-    codes_0 = frames[:, 0].view(1, num_frames)
-    codes_1 = frames[:, [1, 4]].reshape(1, num_frames * 2)
-    codes_2 = frames[:, [2, 3, 5, 6]].reshape(1, num_frames * 4)
+    
+    # Pre-allocate tensors with the right shape and directly on target device
+    codes_0 = torch.empty((1, num_frames), dtype=torch.int32, device=snac_device)
+    codes_1 = torch.empty((1, num_frames * 2), dtype=torch.int32, device=snac_device)
+    codes_2 = torch.empty((1, num_frames * 4), dtype=torch.int32, device=snac_device)
+    
+    # Fill tensors with direct indexing (no intermediate allocations)
+    for i in range(num_frames):
+        base_idx = i * 7
+        codes_0[0, i] = multiframe[base_idx]
+        
+        codes_1[0, i*2] = multiframe[base_idx + 1]
+        codes_1[0, i*2 + 1] = multiframe[base_idx + 4]
+        
+        codes_2[0, i*4] = multiframe[base_idx + 2]
+        codes_2[0, i*4 + 1] = multiframe[base_idx + 3]
+        codes_2[0, i*4 + 2] = multiframe[base_idx + 5]
+        codes_2[0, i*4 + 3] = multiframe[base_idx + 6]
     
     # Batch validation for range check - much faster than per-element checks
     if (torch.any(codes_0 < 0) or torch.any(codes_0 > 4096) or
@@ -116,7 +102,7 @@ def convert_to_audio(multiframe, count):
     
     codes = [codes_0, codes_1, codes_2]
     
-    with torch.inference_mode():
+    with torch.inference_mode():   
         audio_hat = model.decode(codes)
         audio_slice = audio_hat[:, :, 2048:4096]
         
@@ -136,7 +122,7 @@ async def tokens_decoder(token_gen):
     processed every 7 tokens using a sliding window of the last 4 frames (28
     tokens) mirroring the original behaviour.
     """
-    buffer = deque(maxlen=28)
+    buffer = []
     count = 0
     first_chunk_sent = False
     MIN_FRAMES_FIRST = 7      # 1 frame for ultra-low latency
@@ -150,15 +136,14 @@ async def tokens_decoder(token_gen):
 
         buffer.append(token)
         count += 1
-        # deque already bounds length via maxlen, no manual trimming
 
         if not first_chunk_sent and count >= MIN_FRAMES_FIRST:
-            audio = convert_to_audio(list(buffer)[-MIN_FRAMES_FIRST:], count)
+            audio = convert_to_audio(buffer[-MIN_FRAMES_FIRST:], count)
             if audio is not None:
                 first_chunk_sent = True
                 yield audio
         elif first_chunk_sent and count % PROCESS_EVERY == 0:
-            audio = convert_to_audio(list(buffer)[-MIN_FRAMES_SUBSEQ:], count)
+            audio = convert_to_audio(buffer[-MIN_FRAMES_SUBSEQ:], count)
             if audio is not None:
                 yield audio
 
