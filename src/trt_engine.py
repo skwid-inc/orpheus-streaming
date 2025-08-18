@@ -4,7 +4,8 @@ import os
 from tensorrt_llm import LLM, SamplingParams
 from tensorrt_llm.llmapi import KvCacheConfig
 from transformers import AutoTokenizer
-from .decoder_v2 import tokens_decoder
+from .decoder_v2 import tokens_decoder as tokens_decoder_v2
+from .decoder import tokens_decoder
 import logging
 
 logger = logging.getLogger(__name__)

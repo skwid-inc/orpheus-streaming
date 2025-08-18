@@ -37,7 +37,11 @@ async def generate_dummy_tokens(num_frames: int, delay_per_token_s: float = 0.0)
             await asyncio.sleep(delay_per_token_s)
 
 
-async def run_decoder_benchmark(num_frames: int, delay_per_token_s: float) -> Tuple[float, float, int, List[int]]:
+async def run_decoder_benchmark(
+    num_frames: int,
+    delay_per_token_s: float,
+    decoder_fn=tokens_decoder,
+) -> Tuple[float, float, int, List[int], List[float]]:
     """Run the async decoder with dummy tokens and collect metrics.
 
     Returns a tuple: (ttfb_seconds, total_seconds, total_bytes, chunk_sizes)
@@ -46,18 +50,21 @@ async def run_decoder_benchmark(num_frames: int, delay_per_token_s: float) -> Tu
     ttfb = None
     total_bytes = 0
     chunk_sizes: List[int] = []
+    chunk_times: List[float] = []  # seconds since start per emitted chunk
 
-    async for audio_chunk in tokens_decoder(generate_dummy_tokens(num_frames, delay_per_token_s)):
+    async for audio_chunk in decoder_fn(generate_dummy_tokens(num_frames, delay_per_token_s)):
         if not audio_chunk:
             continue
         if ttfb is None:
             ttfb = time.time() - start_time
+        now = time.time() - start_time
         size = len(audio_chunk)
         chunk_sizes.append(size)
+        chunk_times.append(now)
         total_bytes += size
 
     total_time = time.time() - start_time
-    return (ttfb or 0.0, total_time, total_bytes, chunk_sizes)
+    return (ttfb or 0.0, total_time, total_bytes, chunk_sizes, chunk_times)
 
 
 def save_audio_bytes_to_wav(path: str, raw_pcm_bytes: bytes, sample_rate: int = 24000, bits_per_sample: int = 16, channels: int = 1) -> None:
@@ -96,40 +103,92 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=64, help="Number of 7-token frames to emit")
     parser.add_argument("--delay_ms", type=float, default=0.0, help="Optional delay per token in milliseconds")
     parser.add_argument("--save", type=str, default="", help="Optional path to save concatenated audio as WAV")
+    parser.add_argument("--impl", type=str, choices=["v1", "v2", "both"], default="v1", help="Which decoder to benchmark")
+    parser.add_argument("--warmup_frames", type=int, default=28, help="Warmup frames before timing")
+    parser.add_argument("--no_warmup", action="store_true", help="Disable warmup run")
     args = parser.parse_args()
 
     delay_per_token_s = max(0.0, args.delay_ms / 1000.0)
 
-    print("Decoder perf test")
-    print(f"Frames: {args.frames} (tokens: {args.frames * 7})")
-    print(f"Token delay: {delay_per_token_s:.6f}s")
+    def print_header(title: str):
+        print(title)
+        print(f"Frames: {args.frames} (tokens: {args.frames * 7})")
+        print(f"Token delay: {delay_per_token_s:.6f}s")
 
-    ttfb, total, total_bytes, chunk_sizes = asyncio.run(run_decoder_benchmark(args.frames, delay_per_token_s))
+    async def warmup(decoder_fn):
+        if args.no_warmup or args.warmup_frames <= 0:
+            return
+        try:
+            async for _ in decoder_fn(generate_dummy_tokens(args.warmup_frames, delay_per_token_s)):
+                break
+        except Exception:
+            pass
 
-    print("\nResults:")
-    print(f"- TTFB: {ttfb:.4f}s")
-    print(f"- Total: {total:.4f}s")
-    print(f"- Chunks: {len(chunk_sizes)}")
-    if chunk_sizes:
-        print(f"  - First chunk bytes: {chunk_sizes[0]}")
-        print(f"  - Avg chunk bytes: {sum(chunk_sizes)/len(chunk_sizes):.1f}")
-    print(f"- Total audio bytes: {total_bytes}")
+    def print_results(tag: str, ttfb: float, total: float, total_bytes: int, chunk_sizes: List[int], chunk_times: List[float]):
+        print(f"\nResults ({tag}):")
+        print(f"- TTFB: {ttfb:.4f}s")
+        print(f"- Total: {total:.4f}s")
+        print(f"- Chunks: {len(chunk_sizes)}")
+        if chunk_sizes:
+            print(f"  - First chunk bytes: {chunk_sizes[0]}")
+            print(f"  - Avg chunk bytes: {sum(chunk_sizes)/len(chunk_sizes):.1f}")
+        print(f"- Total audio bytes: {total_bytes}")
+        # Avg inter-chunk latency and RTF
+        if chunk_times:
+            inter = []
+            prev = 0.0
+            for t in chunk_times:
+                inter.append(t - prev)
+                prev = t
+            avg_inter_ms = (sum(inter) / len(inter)) * 1000.0
+            print(f"- Avg inter-chunk latency: {avg_inter_ms:.2f} ms")
+        bytes_per_second = 24000 * (16 // 8)
+        audio_duration = (total_bytes / bytes_per_second) if bytes_per_second > 0 else 0.0
+        rtf = (total / audio_duration) if audio_duration > 0 else 0.0
+        print(f"- RTF: {rtf:.3f}")
 
-    if args.save:
-        # Re-run to collect actual bytes for saving, to avoid storing all during timing
-        async def gather_bytes():
-            data = bytearray()
-            async for chunk in tokens_decoder(generate_dummy_tokens(args.frames, delay_per_token_s)):
-                if chunk:
-                    data.extend(chunk)
-            return bytes(data)
+    async def gather_bytes(decoder_fn):
+        data = bytearray()
+        async for chunk in decoder_fn(generate_dummy_tokens(args.frames, delay_per_token_s)):
+            if chunk:
+                data.extend(chunk)
+        return bytes(data)
 
-        audio_bytes = asyncio.run(gather_bytes())
-        save_path = args.save
-        if os.path.isdir(save_path):
-            save_path = os.path.join(save_path, "decoder_dummy.wav")
-        save_audio_bytes_to_wav(save_path, audio_bytes)
-        print(f"Saved audio to: {save_path}")
+    # v1
+    if args.impl in ("v1", "both"):
+        print_header("Decoder v1 perf test")
+        asyncio.run(warmup(tokens_decoder))
+        ttfb, total, total_bytes, chunk_sizes, chunk_times = asyncio.run(
+            run_decoder_benchmark(args.frames, delay_per_token_s, tokens_decoder)
+        )
+        print_results("v1", ttfb, total, total_bytes, chunk_sizes, chunk_times)
+
+        if args.save:
+            audio_bytes = asyncio.run(gather_bytes(tokens_decoder))
+            save_path = args.save
+            if os.path.isdir(save_path):
+                save_path = os.path.join(save_path, "decoder_v1_dummy.wav")
+            save_audio_bytes_to_wav(save_path, audio_bytes)
+            print(f"Saved audio to: {save_path}")
+
+    # v2
+    if args.impl in ("v2", "both"):
+        print()
+        print_header("Decoder v2 perf test")
+        from src.decoder_v2 import tokens_decoder as tokens_decoder_v2
+        asyncio.run(warmup(tokens_decoder_v2))
+        ttfb2, total2, total_bytes2, chunk_sizes2, chunk_times2 = asyncio.run(
+            run_decoder_benchmark(args.frames, delay_per_token_s, tokens_decoder_v2)
+        )
+        print_results("v2", ttfb2, total2, total_bytes2, chunk_sizes2, chunk_times2)
+
+        if args.save:
+            audio_bytes2 = asyncio.run(gather_bytes(tokens_decoder_v2))
+            save_path2 = args.save
+            if os.path.isdir(save_path2):
+                save_path2 = os.path.join(save_path2, "decoder_v2_dummy.wav")
+            save_audio_bytes_to_wav(save_path2, audio_bytes2)
+            print(f"Saved audio to: {save_path2}")
 
 
 if __name__ == "__main__":
@@ -239,3 +298,4 @@ if __name__ == "__main__":
     main()
 
 
+# python benchmark_decoder.py --frames 120 --sleep_ms 0
