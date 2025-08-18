@@ -1,0 +1,43 @@
+2025-08-18 23:14:31,776 - datasets - INFO - PyTorch version 2.6.0 available.
+2025-08-18 23:14:34,906 - INFO - flashinfer.jit: Prebuilt kernels not found, using JIT backend
+[TensorRT-LLM] TensorRT-LLM version: 0.19.0
+2025-08-18 23:14:35,864 - root - INFO - starting torch.compile
+2025-08-18 23:14:46,125 - root - INFO - torch.compile took 10.26 seconds
+2025-08-18 23:14:46,405 - src.decoder - INFO - 🔥 Starting SNAC model warmup...
+2025-08-18 23:14:46,843 - src.decoder - INFO - ✅ SNAC model warmup completed in 438.52ms
+2025-08-18 23:14:46,844 - src.decoder - INFO - 🔥 Pre-warming tensor cache...
+2025-08-18 23:14:46,928 - uvicorn.error - INFO - Started server process [742898]
+2025-08-18 23:14:46,928 - uvicorn.error - INFO - Waiting for application startup.
+2025-08-18 23:14:46,929 - main - INFO - initializing Orpheus
+2025-08-18 23:14:46,929 - src.trt_engine - INFO - --- TRT-LLM Sampling Parameters Loaded ---
+2025-08-18 23:14:46,929 - src.trt_engine - INFO - Model Name: TrySalient/tts-collections-test-verbalized
+2025-08-18 23:14:46,929 - src.trt_engine - INFO - Temperature: 0.4
+2025-08-18 23:14:46,929 - src.trt_engine - INFO - Top P: 0.9
+2025-08-18 23:14:46,929 - src.trt_engine - INFO - Max Tokens: 2000
+2025-08-18 23:14:46,929 - src.trt_engine - INFO - Repetition Penalty: 1.1
+2025-08-18 23:14:46,929 - src.trt_engine - INFO - Stop Token IDs: [128258]
+2025-08-18 23:14:46,929 - src.trt_engine - INFO - Model dtype: bfloat16
+2025-08-18 23:14:46,930 - src.trt_engine - INFO - Max Input Len: 1024
+2025-08-18 23:14:46,930 - src.trt_engine - INFO - Max Batch Size: 1
+2025-08-18 23:14:46,930 - src.trt_engine - INFO - Max Seq Len: 2048
+2025-08-18 23:14:46,930 - src.trt_engine - INFO - Enable Chunked Prefill: True
+2025-08-18 23:14:46,930 - src.trt_engine - INFO - Max Beam Width: 1
+2025-08-18 23:14:46,930 - src.trt_engine - INFO - Max Num Tokens: 4096
+2025-08-18 23:14:46,930 - src.trt_engine - INFO - Free GPU Memory Fraction: 0.2
+2025-08-18 23:14:46,930 - src.trt_engine - INFO - Max KV Cache Tokens: 512
+2025-08-18 23:14:46,930 - src.trt_engine - INFO - -----------------------------------------
+Loading Model: [1;32m[1/3]	[0mDownloading HF model
+[38;20mDownloaded model to /workspace/hf/hub/models--TrySalient--tts-collections-test-verbalized/snapshots/333eda418de9e86a85b5b5809ccb7cb1ac1307b5
+[0m[38;20mTime: 0.335s
+[0mLoading Model: [1;32m[2/3]	[0mLoading HF model to memory
+0it [00:00, ?it/s]181it [00:00, 1809.04it/s]202it [00:00, 1852.57it/s]
+[38;20mTime: 0.497s
+[0mLoading Model: [1;32m[3/3]	[0mBuilding TRT-LLM engine
+[38;20mTime: 25.924s
+[0m[1;32mLoading model done.
+[0m[38;20mTotal latency: 26.757s
+[0m/home/ec2-user/miniconda3/envs/trt_clean/lib/python3.10/site-packages/torch/utils/cpp_extension.py:2059: UserWarning: TORCH_CUDA_ARCH_LIST is not set, all archs for visible cards are included for compilation. 
+If this is not desired, please set os.environ['TORCH_CUDA_ARCH_LIST'].
+  warnings.warn(
+[33;20mrank 0 using MpiPoolSession to spawn MPI processes
+[0m

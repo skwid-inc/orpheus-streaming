@@ -14,7 +14,7 @@ SERVER_PORT = "9090"
 BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
 TEST_TEXT = "I’ll note your promise to pay $136.86 on October 15, 2025. This is a record only and does not schedule a payment."
 VOICE = "tara"
-NUM_RUNS = 5
+NUM_RUNS = 1
 WARMUP_TEXT = "Doing warmup"
 OUTPUT_DIR = "outputs"
 
