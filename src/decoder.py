@@ -4,148 +4,193 @@ import torch
 import asyncio
 import threading
 import queue
-import os
-import time
-from collections import deque
+import re
+import logging
 
-model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
 
-# Check if CUDA is available and set device accordingly
 snac_device = "cuda" if torch.cuda.is_available() else "cpu"
-model = model.to(snac_device)
 
-# Local cache to avoid repeated parsing of the same token strings
-_token_id_cache = {}
-_MAX_CACHE_SIZE = 25000
-_CUSTOM_TOKEN_PREFIX = "<custom_token_"
+_TOKEN_RE = re.compile(r"<custom_token_(\d+)>")
+SNAC_MAX_BATCH = 64
+
+if torch.cuda.is_available():
+    PREPROCESS_STREAM = torch.cuda.Stream()
+else:
+    PREPROCESS_STREAM = None
 
 
-def turn_token_into_id(token_string, index):
-    """Convert a custom token string to its numeric ID with caching.
+class SnacModelBatched:
+    def __init__(self):
+        self.dtype_decoder = torch.float32
+        self.snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval().to(snac_device)
+        self.snac_model.decoder = self.snac_model.decoder.to(self.dtype_decoder)
+        self.stream = torch.cuda.Stream() if torch.cuda.is_available() else None
+        self._maybe_compile()
 
-    Args:
-        token_string (str): The literal token text coming from the model.
-        index (int): Absolute token position (used for offset calculation).
+    def _maybe_compile(self):
+        use_compile = True
+        if not hasattr(torch, "compile"):
+            return
+        if not use_compile:
+            return
+        try:
+            decoder = torch.compile(self.snac_model.decoder, dynamic=True)
+            quantizer = torch.compile(self.snac_model.quantizer, dynamic=True)
+            # Light warmup on a few batch sizes to specialize kernels
+            for bs_size in (1, 4, min(16, SNAC_MAX_BATCH)):
+                codes = [
+                    torch.randint(1, 4096, (bs_size, 4), device=snac_device),
+                    torch.randint(1, 4096, (bs_size, 8), device=snac_device),
+                    torch.randint(1, 4096, (bs_size, 16), device=snac_device),
+                ]
+                with torch.inference_mode():
+                    intermed = quantizer.from_codes(codes)
+                    decoder(intermed.to(self.dtype_decoder))
+            self.snac_model.decoder = decoder
+            self.snac_model.quantizer = quantizer
+        except Exception as exc:
+            logging.warning(f"SNAC torch.compile skipped due to: {exc}")
 
-    Returns:
-        Optional[int]: Numeric token ID or ``None`` if the token is invalid.
-    """
-    token_string = token_string.strip()
-    mod = index % 7  # Offset cycles every 7 tokens
-    cache_key = (token_string, mod)
+    @property
+    def device(self):
+        return snac_device
 
-    if cache_key in _token_id_cache:
-        return _token_id_cache[cache_key]
+    @property
+    def dtype(self):
+        return self.dtype_decoder
 
-    # Locate the last occurrence of the custom token pattern (mirrors original logic)
-    last_idx = token_string.rfind(_CUSTOM_TOKEN_PREFIX)
-    if last_idx == -1:
-        if len(_token_id_cache) < _MAX_CACHE_SIZE:
-            _token_id_cache[cache_key] = None
+    # Dynamically batch multiple decode requests that arrive within a short window
+    @staticmethod
+    def _can_batch(all_codes):
+        first_shapes = tuple(t.shape for t in all_codes[0])
+        return len(all_codes) > 1 and all(tuple(t.shape for t in codes) == first_shapes for codes in all_codes)
+
+    # Decorator imported from the `batched` package
+    import batched  # local import to avoid top-level failure if not installed
+
+    @batched.dynamically(batch_size=SNAC_MAX_BATCH, timeout_ms=15)
+    def batch_snac_model(self, items: list[dict[str, list[torch.Tensor]]]) -> list[torch.Tensor]:
+        with torch.inference_mode():
+            if self.stream is not None:
+                cm = torch.cuda.stream(self.stream)
+            else:
+                # Dummy context manager
+                class _Noop:
+                    def __enter__(self):
+                        return None
+                    def __exit__(self, exc_type, exc, tb):
+                        return False
+                cm = _Noop()
+
+            with cm:
+                all_codes = [entry["codes"] for entry in items]
+                if self._can_batch(all_codes):
+                    stacked_codes = [torch.cat([codes[i] for codes in all_codes], dim=0) for i in range(3)]
+                    z_q = self.snac_model.quantizer.from_codes(stacked_codes)
+                    audio = self.snac_model.decoder(z_q.to(self.dtype_decoder))[:, :, 2048:4096].to(torch.float32)
+                    outputs = list(audio.split(1, dim=0))
+                else:
+                    outputs = []
+                    for codes in all_codes:
+                        z_q = self.snac_model.quantizer.from_codes(codes)
+                        audio = self.snac_model.decoder(z_q.to(self.dtype_decoder))[:, :, 2048:4096].to(torch.float32)
+                        outputs.append(audio)
+            if self.stream is not None:
+                self.stream.synchronize()
+            return outputs
+
+
+model_snac = SnacModelBatched()
+
+
+def _extract_all_custom_token_values(s: str):
+    return [int(m.group(1)) for m in _TOKEN_RE.finditer(s) if m.group(1) != "0"]
+
+
+def turn_token_into_id(token_value: int, index: int):
+    return token_value - 10 - ((index % 7) * 4096)
+
+
+@torch.inference_mode()
+async def convert_to_audio(frame_ids: list[int]):
+    n = len(frame_ids) // 7
+    if n == 0:
         return None
-
-    token_substr = token_string[last_idx:]  # from prefix to end
-
-    if not token_substr.startswith(_CUSTOM_TOKEN_PREFIX) or not token_substr.endswith(">"):
-        if len(_token_id_cache) < _MAX_CACHE_SIZE:
-            _token_id_cache[cache_key] = None
+    arr = torch.tensor(frame_ids[: n * 7], dtype=torch.int32)
+    mat = arr.view(n, 7)
+    codes_0 = mat[:, 0]
+    codes_1 = mat[:, [1, 4]].reshape(-1)
+    codes_2 = mat[:, [2, 3, 5, 6]].reshape(-1)
+    if (
+        ((codes_0 < 0) | (codes_0 > 4096)).any()
+        or ((codes_1 < 0) | (codes_1 > 4096)).any()
+        or ((codes_2 < 0) | (codes_2 > 4096)).any()
+    ):
         return None
-
-    digits = token_substr[len(_CUSTOM_TOKEN_PREFIX):-1]
-    if not digits.isdigit():
-        if len(_token_id_cache) < _MAX_CACHE_SIZE:
-            _token_id_cache[cache_key] = None
-        return None
-
-    token_id = int(digits) - 10 - (mod * 4096)
-
-    if len(_token_id_cache) < _MAX_CACHE_SIZE:
-        _token_id_cache[cache_key] = token_id
-
-    return token_id
-
-
-def convert_to_audio(multiframe, count):
-    """
-    Highly optimized version of convert_to_audio that eliminates inefficient 
-    tensor operations and reduces CPU-GPU transfers for much faster inference
-    on high-end GPUs.
-    """
-    if len(multiframe) < 7:
-        return None
-    
-    num_frames = len(multiframe) // 7
-    
-    # Pre-allocate tensors with the right shape and directly on target device
-    codes_0 = torch.empty((1, num_frames), dtype=torch.int32, device=snac_device)
-    codes_1 = torch.empty((1, num_frames * 2), dtype=torch.int32, device=snac_device)
-    codes_2 = torch.empty((1, num_frames * 4), dtype=torch.int32, device=snac_device)
-    
-    # Fill tensors with direct indexing (no intermediate allocations)
-    for i in range(num_frames):
-        base_idx = i * 7
-        codes_0[0, i] = multiframe[base_idx]
-        
-        codes_1[0, i*2] = multiframe[base_idx + 1]
-        codes_1[0, i*2 + 1] = multiframe[base_idx + 4]
-        
-        codes_2[0, i*4] = multiframe[base_idx + 2]
-        codes_2[0, i*4 + 1] = multiframe[base_idx + 3]
-        codes_2[0, i*4 + 2] = multiframe[base_idx + 5]
-        codes_2[0, i*4 + 3] = multiframe[base_idx + 6]
-    
-    # Batch validation for range check - much faster than per-element checks
-    if (torch.any(codes_0 < 0) or torch.any(codes_0 > 4096) or
-        torch.any(codes_1 < 0) or torch.any(codes_1 > 4096) or
-        torch.any(codes_2 < 0) or torch.any(codes_2 > 4096)):
-        return None
-    
-    codes = [codes_0, codes_1, codes_2]
-    
-    with torch.inference_mode():   
-        audio_hat = model.decode(codes)
-        audio_slice = audio_hat[:, :, 2048:4096]
-        
-        if snac_device == "cuda":
-            audio_int16_tensor = (audio_slice * 32767.0).round().to(torch.int16)
-            return audio_int16_tensor.cpu().numpy().tobytes()
-        else:
-            audio_np = audio_slice.numpy()
-            return (audio_np * 32767.0).round().astype(np.int16).tobytes()
+    if PREPROCESS_STREAM is not None:
+        with torch.cuda.stream(PREPROCESS_STREAM):
+            codes = [
+                codes_0.unsqueeze(0).to(snac_device),
+                codes_1.unsqueeze(0).to(snac_device),
+                codes_2.unsqueeze(0).to(snac_device),
+            ]
+        PREPROCESS_STREAM.synchronize()
+    else:
+        codes = [
+            codes_0.unsqueeze(0),
+            codes_1.unsqueeze(0),
+            codes_2.unsqueeze(0),
+        ]
+        codes = [t.to(snac_device) for t in codes]
+    audio_hat = await model_snac.batch_snac_model.acall({"codes": codes})
+    audio_cpu = audio_hat.detach().cpu().numpy()
+    audio_bytes = (audio_cpu * 32767.0).round().astype(np.int16).tobytes()
+    return audio_bytes
 
 
 async def tokens_decoder(token_gen):
-    """Decode tokens into audio chunks with reduced latency.
-
-    The first audio chunk is emitted as soon as **one** frame (7 tokens) is
-    available, drastically reducing time-to-first-byte. Subsequent chunks are
-    processed every 7 tokens using a sliding window of the last 4 frames (28
-    tokens) mirroring the original behaviour.
-    """
     buffer = []
     count = 0
-    first_chunk_sent = False
-    MIN_FRAMES_FIRST = 7      # 1 frame for ultra-low latency
-    MIN_FRAMES_SUBSEQ = 28    # 4 frames
-    PROCESS_EVERY = 7         # process at every full frame boundary
+    first_chunk_enqueued = False
+    PROCESS_EVERY = 7
+    WINDOW = 28
+    audio_queue = asyncio.Queue()
 
-    async for token_sim in token_gen:
-        token = turn_token_into_id(token_sim, count)
-        if token is None or token <= 0:
-            continue
+    async def producer():
+        nonlocal buffer, count, first_chunk_enqueued
+        consumed = 0
+        async for token_sim in token_gen:
+            toks = _extract_all_custom_token_values(token_sim)
+            if len(toks) <= consumed:
+                continue
+            new_toks = toks[consumed:]
+            consumed = len(toks)
+            for raw_tok in new_toks:
+                token_id = turn_token_into_id(int(raw_tok), count)
+                if token_id <= 0:
+                    continue
+                buffer.append(token_id)
+                count += 1
+                if not first_chunk_enqueued and count >= 7:
+                    task = asyncio.create_task(convert_to_audio(buffer[-7:]))
+                    audio_queue.put_nowait(task)
+                    first_chunk_enqueued = True
+                elif count % PROCESS_EVERY == 0 and count >= WINDOW:
+                    task = asyncio.create_task(convert_to_audio(buffer[-WINDOW:]))
+                    audio_queue.put_nowait(task)
+        audio_queue.put_nowait(None)
 
-        buffer.append(token)
-        count += 1
+    producer_task = asyncio.create_task(producer())
 
-        if not first_chunk_sent and count >= MIN_FRAMES_FIRST:
-            audio = convert_to_audio(buffer[-MIN_FRAMES_FIRST:], count)
-            if audio is not None:
-                first_chunk_sent = True
-                yield audio
-        elif first_chunk_sent and count % PROCESS_EVERY == 0:
-            audio = convert_to_audio(buffer[-MIN_FRAMES_SUBSEQ:], count)
-            if audio is not None:
-                yield audio
+    while True:
+        task = await audio_queue.get()
+        if task is None:
+            break
+        audio = await task
+        if audio is not None:
+            yield audio
+        audio_queue.task_done()
+    await producer_task
 
 
 def tokens_decoder_sync(syn_token_gen):

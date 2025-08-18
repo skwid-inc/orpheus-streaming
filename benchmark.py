@@ -12,7 +12,7 @@ load_dotenv()
 SERVER_HOST = "localhost"
 SERVER_PORT = "9090"
 BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
-TEST_TEXT = "Hi How are you doing today? So happy to see you again."
+TEST_TEXT = "How are you doing today? So happy to see you again."
 VOICE = "tara"
 NUM_RUNS = 5
 WARMUP_TEXT = "Doing warmup"
