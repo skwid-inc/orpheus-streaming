@@ -1,7 +1,13 @@
+# Use with: docker compose up -d (not docker-compose)
+# Modern Docker uses 'docker compose' as a subcommand
 version: '3.8'
 
 services:
   orpheus-tts:
+    # Option 1: Use pre-built image from ECR (comment out build section)
+    # image: 308804103509.dkr.ecr.us-west-2.amazonaws.com/orpheus-tts:latest
+    
+    # Option 2: Build from source (default)
     image: orpheus-tts:latest
     build:
       context: ..
@@ -13,6 +19,8 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=0
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
     ports:
       - "9090:9090"
     volumes:
