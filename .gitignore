@@ -4,3 +4,14 @@ outputs/*
 logs
 *.cache
 orpheus
+
+# Hallucination evaluation outputs
+hallucination_eval/outputs/
+hallucination_eval/__pycache__/
+
+# API benchmark outputs
+api_benchmark_outputs/
+
+# Generated audio files
+*.wav
+*.pcm

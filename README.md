@@ -4,6 +4,10 @@
 - 200ms ttfb on fp16 using vllm
 - <160 ms ttfb on fp16 using trt-llm
 
+## Docker Deployment
+
+For Docker deployment on A100 GPUs, see the [deployment/](./deployment/) directory which contains all necessary files and documentation.
+
 ### installation
 - `sudo apt-get -y install libopenmpi-dev`
 - `conda create -n trt python=3.10 && conda activate trt` or use a virtual env with python3.10
@@ -29,7 +33,7 @@ The hf repo of model `canopylabs/orpheus-3b-0.1-ft` has optimiser / fsdp files w
   - `python -m pip install --index-url https://download.pytorch.org/whl/cu124 torch==2.6.0 torchvision==0.21.0`
 
 - install project/runtime deps
-  - `python -m pip install fastapi "uvicorn[standard]" transformers==4.51.0 snac batched`
+  - `python -m pip install fastapi "uvicorn[standard]" transformers==4.51.0 snac batched google-generativeai>=0.3.0 g2p_en`
   - `python -m pip install tensorrt==10.9.0.34 tensorrt_llm==0.19.0`
 
 - pin cuda-python to avoid import issue

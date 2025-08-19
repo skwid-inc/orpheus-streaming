@@ -5,6 +5,7 @@ import time
 import os
 from src.trt_engine import OrpheusModelTRT
 from src.tts_with_timestamps import TTSWithTimestamps
+from src.benchmark_api import BenchmarkService, BenchmarkRequest, BenchmarkResult
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 import logging
@@ -187,3 +188,21 @@ async def get_voices():
         "default": default_voice,
         "count": len(VOICE_DETAILS)
     }
+
+
+@app.post("/v1/benchmark", response_model=BenchmarkResult)
+async def run_benchmark(request: BenchmarkRequest):
+    """
+    Run benchmark tests for TTS generation.
+    
+    This endpoint performs multiple TTS generation runs and calculates performance metrics
+    including TTFB (Time to First Byte), total generation time, and RTF (Real-Time Factor).
+    """
+    benchmark_service = BenchmarkService(base_url=f"http://localhost:{os.getenv('SERVER_PORT', '9090')}")
+    try:
+        result = await benchmark_service.run_benchmark(request)
+        logger.info(f"Benchmark completed: {result.successful_runs} successful, {result.failed_runs} failed")
+        return result
+    except Exception as e:
+        logger.error(f"Benchmark failed: {str(e)}")
+        raise
