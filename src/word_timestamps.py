@@ -9,6 +9,7 @@ import os
 from typing import List, Dict, Tuple, Optional, Literal
 from pathlib import Path
 import logging
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -61,29 +62,30 @@ class TextNormalizer:
 
 
 class SimpleG2P:
-    """Simple grapheme-to-phoneme approximation."""
+    """Grapheme-to-phoneme using g2p-en."""
+    
+    def __init__(self):
+        from g2p_en import G2p
+        self.g2p = G2p()
+        logger.info("Using g2p-en for phoneme counts")
     
     def get_phone_counts(self, words: List[str]) -> List[int]:
         """
-        Estimate phone count per word using simple heuristics.
-        Real implementation would use phonemizer or g2p-en.
+        Get phone count per word using g2p-en.
         """
         counts = []
         for word in words:
-            # Simple heuristic: ~1.2 phones per character
-            # Short words get a minimum of 2 phones
-            # Long words cap at 15 phones
-            length = len(word)
-            if length <= 2:
-                count = 2
-            elif length <= 4:
-                count = 3
-            elif length <= 7:
-                count = int(length * 1.2)
-            else:
-                count = min(15, int(length * 1.1))
-            counts.append(count)
+            counts.append(self._get_cached_phoneme_count(word))
         return counts
+    
+    @lru_cache(maxsize=10000)
+    def _get_cached_phoneme_count(self, word: str) -> int:
+        """Cache g2p-en phoneme counts to avoid repeated computation."""
+        phonemes = self.g2p(word.lower())
+        # Filter out spaces and count actual phonemes
+        phoneme_count = len([p for p in phonemes if p != ' '])
+        # Minimum of 2 phonemes (even for single letters)
+        return max(2, phoneme_count)
 
 
 class VoiceProfile:
@@ -143,6 +145,15 @@ class WordTimeline:
         self.voice_profile = voice_profile
         self.speaking_rate = speaking_rate
         
+        # Identify sentence end indices (., ?, ! end a sentence)
+        self.sentence_end_indices = []
+        for i, p in enumerate(self.punct_classes):
+            if p in {"period", "question", "exclaim"}:
+                self.sentence_end_indices.append(i)
+        # Ensure the last word closes a segment
+        if not self.sentence_end_indices or self.sentence_end_indices[-1] != len(self.words) - 1:
+            self.sentence_end_indices.append(len(self.words) - 1)
+        
         # Build initial predictions
         self.base_start, self.base_end = self._build_initial_timeline()
         
@@ -182,57 +193,83 @@ class WordTimeline:
     
     def rescale_to_audio_time(self, audio_seconds: float) -> bool:
         """
-        Rescale unfinalized words to match audio playback time.
-        Returns True if timeline was updated.
+        Freeze words whose *scaled* end is behind audio, then rubber-band only the
+        current sentence (between finalized+1 and its sentence end) to match audio.
+        Returns True if any timings changed.
         """
         guard = self.voice_profile.guard_ms / 1000.0
         n = len(self.words)
-        
-        # Find new finalized index (words that are definitely done playing)
-        new_finalized = self.finalized_index
-        while new_finalized + 1 < n and self.base_end[new_finalized + 1] <= max(0, audio_seconds - guard):
-            new_finalized += 1
-        
-        # If everything is finalized, nothing to rescale
-        if new_finalized >= n - 1:
-            self.finalized_index = n - 1
-            return False
-        
-        # Calculate scale factor for open segment
-        pred_final_end = self.base_end[new_finalized] if new_finalized >= 0 else 0.0
-        pred_open_end = self.base_end[-1]  # End of last word
-        
-        if pred_open_end - pred_final_end < 0.001:  # Avoid division by zero
-            return False
-        
-        scale = (audio_seconds - pred_final_end) / (pred_open_end - pred_final_end)
-        scale = max(0.6, min(1.5, scale))  # Clamp scale factor
-        
-        # Update unfinalized word timings
         updated = False
-        for i in range(new_finalized + 1, n):
-            new_start = pred_final_end + (self.base_start[i] - pred_final_end) * scale
-            new_end = pred_final_end + (self.base_end[i] - pred_final_end) * scale
-            
-            # Only update if changed significantly
-            if abs(new_start - self.start[i]) > 0.01 or abs(new_end - self.end[i]) > 0.01:
-                self.start[i] = new_start
-                self.end[i] = new_end
+
+        # 1) Finalize against *scaled* end times (not base)
+        new_finalized = self.finalized_index
+        while new_finalized + 1 < n and self.end[new_finalized + 1] <= max(0.0, audio_seconds - guard):
+            new_finalized += 1
+        if new_finalized != self.finalized_index:
+            self.finalized_index = new_finalized
+            updated = True
+
+        # 2) If everything is finalized, nothing to scale
+        if self.finalized_index >= n - 1:
+            return updated
+
+        # 3) Determine current sentence open segment [lo .. hi]
+        lo = self.finalized_index + 1
+        # Find first sentence end >= lo
+        hi = next((idx for idx in self.sentence_end_indices if idx >= lo), n - 1)
+
+        # 4) Compute scale using *base* anchors for the open segment
+        pred_final_end = self.base_end[self.finalized_index] if self.finalized_index >= 0 else 0.0
+        pred_open_end = self.base_end[hi]
+        denom = max(1e-3, pred_open_end - pred_final_end)
+        target = max(pred_final_end, audio_seconds)  # Don't shrink behind the anchor
+        scale = (target - pred_final_end) / denom
+        scale = max(0.6, min(1.5, scale))  # Clamp for stability
+
+        # 5) Apply scaling to open segment only; enforce monotonicity & min duration
+        MIN_DUR = 0.02  # 20ms minimum duration
+        for i in range(lo, hi + 1):
+            ns = pred_final_end + (self.base_start[i] - pred_final_end) * scale
+            ne = pred_final_end + (self.base_end[i] - pred_final_end) * scale
+            # Push forward to avoid overlap with finalized region
+            if i > 0 and ns < self.end[i - 1]:
+                ns = self.end[i - 1]
+            if ne <= ns:
+                ne = ns + MIN_DUR
+            if abs(ns - self.start[i]) > 1e-3 or abs(ne - self.end[i]) > 1e-3:
+                self.start[i] = ns
+                self.end[i] = ne
                 updated = True
-        
-        self.finalized_index = new_finalized
+
+        # 6) (Optional) Shift subsequent sentences by the same delta to preserve relative spacing
+        delta = (self.end[hi] - self.base_end[hi]) if hi < n else 0.0
+        if abs(delta) > 1e-3 and hi + 1 < n:
+            for i in range(hi + 1, n):
+                ns = self.base_start[i] + delta
+                ne = self.base_end[i] + delta
+                # Enforce monotonicity
+                if ns < self.end[i - 1]:
+                    ns = self.end[i - 1]
+                if ne <= ns:
+                    ne = ns + MIN_DUR
+                if abs(ns - self.start[i]) > 1e-3 or abs(ne - self.end[i]) > 1e-3:
+                    self.start[i] = ns
+                    self.end[i] = ne
+                    updated = True
+
         return updated
     
     def get_timeline_event(self) -> Dict:
         """Get current timeline as event dict."""
         return {
             "type": "TIMELINE_UPDATE",
-            "words": self.words,
+            "words": self.words,  # Original text, not expanded
             "start": self.start,
             "end": self.end,
-            "start_sample": [int(s * SR) for s in self.start],
-            "end_sample": [int(e * SR) for e in self.end],
+            "start_sample": [int(round(s * SR)) for s in self.start],
+            "end_sample": [int(round(e * SR)) for e in self.end],
             "finalized_until_index": self.finalized_index,
+            "sample_rate": SR,
             "source": "interpolated"
         }
 
