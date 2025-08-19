@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  orpheus-tts:
+    image: orpheus-tts:latest
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    container_name: orpheus-tts-server
+    runtime: nvidia
+    env_file:
+      - ../.env
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    ports:
+      - "9090:9090"
+    volumes:
+      # Persist model cache to avoid re-downloading
+      - orpheus_hf_cache:/workspace/hf
+      # Optional: Mount logs and outputs
+      - ../logs:/app/logs
+      - ../outputs:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  orpheus_hf_cache:
+    driver: local

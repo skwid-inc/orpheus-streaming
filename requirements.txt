@@ -3,9 +3,10 @@ httptools
 pydantic
 python-dotenv
 snac
-tensorrt_llm==0.20.0
+tensorrt_llm==0.19.0
 uvicorn[standard]
 tqdm
 setuptools
 batched
 g2p_en
+aiohttp
