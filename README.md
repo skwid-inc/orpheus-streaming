@@ -4,6 +4,10 @@
 - 200ms ttfb on fp16 using vllm
 - <160 ms ttfb on fp16 using trt-llm
 
+## Docker Deployment
+
+For Docker deployment on A100 GPUs, see the [deployment/](./deployment/) directory which contains all necessary files and documentation.
+
 ### installation
 - `sudo apt-get -y install libopenmpi-dev`
 - `conda create -n trt python=3.10 && conda activate trt` or use a virtual env with python3.10
