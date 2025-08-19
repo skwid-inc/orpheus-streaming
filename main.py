@@ -64,9 +64,6 @@ async def lifespan(app: FastAPI):
 
     engine = OrpheusModelTRT()
     
-    # Warm up models to eliminate cold start penalties
-    logger.info("Warming up models for optimal performance...")
-    engine.warmup_models()
     
     tts_handler = TTSWithTimestamps(engine)
 
