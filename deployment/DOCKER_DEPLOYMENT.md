@@ -1,46 +1,91 @@
 # Docker Deployment Guide for Orpheus TTS Server
 
-This guide provides instructions for deploying the Orpheus TTS Server using Docker on A100 GPUs.
+This guide provides instructions for deploying the Orpheus TTS Server using Docker with GPU support. You can either use the pre-built image from ECR or build your own from source.
 
 ## Prerequisites
 
-- NVIDIA A100 GPU
+- NVIDIA GPU (A100, RTX 4090, or similar)
 - Docker installed with NVIDIA Container Toolkit
 - NVIDIA drivers (CUDA 12.4 compatible)
 - Your `.env` file configured with necessary parameters
 
-## Quick Start
+## Quick Start - Two Options
 
-### 1. Build the Docker Image
+Choose one of the following deployment paths:
 
-From the project root:
+---
+
+## Option 1: Use Pre-built Image from ECR (Recommended)
+
+### 1. Authenticate with ECR
 ```bash
-./deployment/docker-build.sh
+aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 308804103509.dkr.ecr.us-west-2.amazonaws.com
 ```
 
-Or manually from the project root:
+### 2. Pull the Image
 ```bash
+docker pull 308804103509.dkr.ecr.us-west-2.amazonaws.com/orpheus-tts:latest
+```
+
+### 3. Run the Server
+```bash
+# Using docker run
+docker run --gpus all \
+  --name orpheus-tts \
+  --rm \
+  --env-file .env \
+  -e TRANSFORMERS_OFFLINE=0 \
+  -e HF_HUB_OFFLINE=0 \
+  -p 9090:9090 \
+  -v orpheus_hf_cache:/workspace/hf \
+  308804103509.dkr.ecr.us-west-2.amazonaws.com/orpheus-tts:latest
+
+# Or update docker-compose.yml to use ECR image and run:
+cd deployment && docker compose up -d
+```
+
+---
+
+## Option 2: Build from Source
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/your-org/orpheus-streaming.git
+cd orpheus-streaming
+```
+
+### 2. Build the Docker Image
+```bash
+# Using the build script
+./deployment/docker-build.sh
+
+# Or manually
 docker build -t orpheus-tts:latest -f deployment/Dockerfile .
 ```
 
-### 2. Run the Server
-
-Using the provided script from the project root:
+### 3. Run the Server
 ```bash
+# Using the run script
 ./deployment/docker-run.sh
+
+# Or using docker-compose
+cd deployment && docker compose up -d
+
+# Or manually
+docker run --gpus all \
+  --name orpheus-tts \
+  --rm \
+  --env-file .env \
+  -e TRANSFORMERS_OFFLINE=0 \
+  -e HF_HUB_OFFLINE=0 \
+  -p 9090:9090 \
+  -v orpheus_hf_cache:/workspace/hf \
+  orpheus-tts:latest
 ```
 
-Or using docker-compose:
-```bash
-cd deployment && docker-compose up -d
-```
+---
 
-Or manually with docker run from the project root:
-```bash
-docker run --gpus all --env-file .env -p 9090:9090 orpheus-tts:latest
-```
-
-### 3. Test the Endpoints
+## Testing the Deployment
 
 The server will be available at `http://localhost:9090`. Test it with:
 

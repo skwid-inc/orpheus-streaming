@@ -4,6 +4,10 @@ version: '3.8'
 
 services:
   orpheus-tts:
+    # Option 1: Use pre-built image from ECR (comment out build section)
+    # image: 308804103509.dkr.ecr.us-west-2.amazonaws.com/orpheus-tts:latest
+    
+    # Option 2: Build from source (default)
     image: orpheus-tts:latest
     build:
       context: ..
