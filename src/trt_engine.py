@@ -4,10 +4,8 @@ import os
 from tensorrt_llm import LLM, SamplingParams
 from tensorrt_llm.llmapi import KvCacheConfig
 from transformers import AutoTokenizer
-from .decoder_v2 import tokens_decoder as tokens_decoder_v2
-from .decoder import tokens_decoder, warmup_snac_model
+from .decoder_v2 import tokens_decoder
 import logging
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +66,6 @@ class OrpheusModelTRT:
                     trust_remote_code=True,
                     max_beam_width=self.max_beam_width,
                     max_num_tokens=self.max_num_tokens,
-                    # Force single GPU usage to avoid MPI issues
-                    tensor_parallel_size=1,
-                    pipeline_parallel_size=1,
                     kv_cache_config=KvCacheConfig(
                         free_gpu_memory_fraction=self.free_gpu_memory_fraction,
                         # max_tokens=self.max_kv_cache_tokens,
@@ -119,48 +114,4 @@ class OrpheusModelTRT:
         """
         token_generator = self.generate_tokens_async(prompt, voice)
         async for audio_chunk in tokens_decoder(token_generator):
-            yield audio_chunk
-    
-    def warmup_models(self):
-        """
-        Warm up both LLM and SNAC models to eliminate cold start penalties.
-        
-        This method should be called after initialization to ensure optimal
-        performance for the first real inference request.
-        """
-        logger.info("🚀 Starting model warmup process...")
-        total_warmup_start = time.perf_counter()
-        
-        # Warm up LLM with a simple prompt
-        logger.info("🔥 Warming up LLM engine...")
-        llm_warmup_start = time.perf_counter()
-        try:
-            warmup_prompt = "test"
-            warmup_voice = "tara"
-            
-            # Simple synchronous warmup - just generate one token
-            prompt_string = self._format_prompt(warmup_prompt, warmup_voice)
-            sampling_params = SamplingParams(
-                temperature=self.temperature,
-                top_p=self.top_p,
-                max_tokens=1,  # Just one token for warmup
-                stop_token_ids=self.stop_token_ids,
-                repetition_penalty=self.repetition_penalty,
-            )
-            
-            # This will initialize CUDA kernels for the LLM
-            outputs = self.engine.generate(prompt_string, sampling_params)
-            
-            llm_warmup_time = time.perf_counter() - llm_warmup_start
-            logger.info(f"✅ LLM warmup completed in {llm_warmup_time*1000:.2f}ms")
-            
-        except Exception as e:
-            llm_warmup_time = time.perf_counter() - llm_warmup_start
-            logger.warning(f"⚠️  LLM warmup failed after {llm_warmup_time*1000:.2f}ms: {e}")
-        
-        # Warm up SNAC model (this calls the function we added to decoder.py)
-        warmup_snac_model()
-        
-        total_warmup_time = time.perf_counter() - total_warmup_start
-        logger.info(f"🎯 Total model warmup completed in {total_warmup_time*1000:.2f}ms")
-        logger.info("🚀 Models are now ready for optimal performance!") 
+            yield audio_chunk 
