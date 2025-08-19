@@ -1,5 +1,6 @@
 ## Quick Example
 
+### Using Fixed Text
 ```bash
 # Generate 1000 (500*2) test samples
 python generate_audio.py --use-fixed-text --num-items 500
@@ -7,6 +8,25 @@ python generate_audio.py --use-fixed-text --num-items 500
 # Evaluate them
 python eval_with_gemini.py --input-dir outputs/tts_download/orpheus
 ```
+
+### Using JSONL File
+```bash
+# Use the provided alphanumeric.jsonl (50 prompts with numbers, dates, and codes)
+# Or create your own JSONL file (each line is a JSON object with "text" field)
+
+# Generate audio from JSONL
+python generate_audio.py --input alphanumeric.jsonl --samples-per-prompt 2
+
+# Evaluate the generated audio
+python eval_with_gemini.py --input-dir outputs/tts_download/orpheus
+```
+
+The included `alphanumeric.jsonl` contains 50 challenging prompts from the [TrySalient/tts-v2-verbalized](https://huggingface.co/datasets/TrySalient/tts-v2-verbalized) dataset, featuring:
+- Dollar amounts and financial figures
+- Dates and times
+- Phone numbers and account numbers  
+- Confirmation codes with spelled-out letters
+- Vehicle models and years
 
 
 # Hallucination Evaluation Scripts
@@ -30,22 +50,37 @@ Scripts for evaluating TTS audio quality and detecting hallucinations using Goog
    pip install -r requirements.txt
    ```
 
-4. **Gemini API Key**: The script uses the `.env` file from the parent directory:
+4. **Gemini API Key**: Add to the parent directory's `.env` file (`/workspace/orpheus-streaming/.env`):
    ```
    GEMINI_API_KEY=your_api_key_here
    ```
+   Get your API key from: https://makersuite.google.com/app/apikey
 
 ## Usage
 
 ### Step 1: Generate TTS Audio
 
+**From Fixed Text:**
 ```bash
-# Generate audio from fixed test text
 python generate_audio.py \
   --use-fixed-text \
   --num-items 100 \
   --samples-per-prompt 2 \
   --concurrency 16
+```
+
+**From JSONL File:**
+```bash
+python generate_audio.py \
+  --input alphanumeric.jsonl \
+  --samples-per-prompt 2 \
+  --concurrency 16
+```
+
+JSONL Format (each line is a JSON object):
+```json
+{"text": "Your text to synthesize here"}
+{"text": "Another text prompt", "metadata": "optional fields are ignored"}
 ```
 
 Options:
