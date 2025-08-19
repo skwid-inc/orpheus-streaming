@@ -19,7 +19,10 @@ orpheus-streaming/           # Project root
     ├── docker-build.sh      # Build script
     ├── docker-run.sh        # Run script
     ├── test_docker_deployment.sh  # Deployment test
-    └── DOCKER_DEPLOYMENT.md # Deployment documentation
+    ├── DOCKER_DEPLOYMENT.md # Deployment documentation
+    ├── ECR_DEPLOYMENT.md    # ECR pre-built image guide
+    ├── QUICKSTART.md        # Quick start guide
+    └── README.md            # Deployment overview
 ```
 
 ## Key Features Added
@@ -34,7 +37,24 @@ orpheus-streaming/           # Project root
    - Scripts handle path navigation automatically
    - docker-compose uses parent context for builds
 
+3. **Two Deployment Paths**
+   - **Pre-built Image**: Use the ECR image for quick deployment
+   - **Build from Source**: Build your own image with customizations
+   - Clear documentation for both approaches
+
 ## Usage
+
+### Using Pre-built Image (Recommended)
+
+```bash
+# Authenticate with ECR
+aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 308804103509.dkr.ecr.us-west-2.amazonaws.com
+
+# Run directly
+docker run --gpus all --env-file .env -p 9090:9090 308804103509.dkr.ecr.us-west-2.amazonaws.com/orpheus-tts:latest
+```
+
+### Building from Source
 
 All commands should be run from the project root:
 
