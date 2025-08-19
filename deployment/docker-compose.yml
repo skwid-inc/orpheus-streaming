@@ -1,3 +1,5 @@
+# Use with: docker compose up -d (not docker-compose)
+# Modern Docker uses 'docker compose' as a subcommand
 version: '3.8'
 
 services:
@@ -13,6 +15,8 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=0
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
     ports:
       - "9090:9090"
     volumes:
