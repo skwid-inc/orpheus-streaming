@@ -18,9 +18,9 @@ class OrpheusModelTRT:
         self.available_voices = [voice.strip() for voice in voices_str.split(',')]
 
         # Load sampling parameters from environment variables
-        self.temperature = float(os.getenv("TRT_TEMPERATURE", 0.4))
-        self.top_p = float(os.getenv("TRT_TOP_P", 0.9))
-        self.max_tokens = int(os.getenv("TRT_MAX_TOKENS", 1024))
+        self.temperature = float(os.getenv("TRT_TEMPERATURE", 0.1))
+        self.top_p = float(os.getenv("TRT_TOP_P", 0.95))
+        self.max_tokens = int(os.getenv("TRT_MAX_TOKENS", 1200))
         self.repetition_penalty = float(os.getenv("TRT_REPETITION_PENALTY", 1.1))
         stop_token_ids_str = os.getenv("TRT_STOP_TOKEN_IDS", "128258")
         self.stop_token_ids = [int(token_id.strip()) for token_id in stop_token_ids_str.split(',')]
@@ -78,14 +78,14 @@ class OrpheusModelTRT:
             if voice not in self.available_voices:
                 raise ValueError(f"Voice {voice} is not available for model {self.model_name}")
     
-    def _format_prompt(self, prompt, voice="tara"):
+    def _format_prompt(self, prompt, voice=None):
         # This formatting is specific to the Orpheus model
-        adapted_prompt = f"{voice}: {prompt}"
+        adapted_prompt = f"{voice}: {prompt}" if voice else prompt
         prompt_tokens = self.tokenizer(adapted_prompt, return_tensors="pt")
         start_token = torch.tensor([[ 128259]], dtype=torch.int64)
-        end_tokens = torch.tensor([[128009, 128260, 128261, 128257]], dtype=torch.int64)
+        end_tokens = torch.tensor([[128009, 128260]], dtype=torch.int64)
         all_input_ids = torch.cat([start_token, prompt_tokens.input_ids, end_tokens], dim=1)
-        prompt_string = self.tokenizer.decode(all_input_ids[0])
+        prompt_string = self.tokenizer.decode(all_input_ids[0], skip_special_tokens=False)
         return prompt_string
 
     async def generate_tokens_async(self, prompt, voice):
