@@ -28,12 +28,12 @@ logger = logging.getLogger(__name__)
 
 class TTSRequest(BaseModel):
     input: str = "Hey there, looks like you forgot to provide a prompt!"
-    voice: str = "tara"
+    voice: str | None = None
 
 
 class TTSStreamRequest(BaseModel):
     input: str
-    voice: str = "tara"
+    voice: str | None = None
     continue_: bool = Field(True, alias="continue")
     segment_id: str
 
@@ -64,9 +64,6 @@ async def lifespan(app: FastAPI):
 
     engine = OrpheusModelTRT()
     
-    # Warm up models to eliminate cold start penalties
-    logger.info("Warming up models for optimal performance...")
-    engine.warmup_models()
     
     tts_handler = TTSWithTimestamps(engine)
 
@@ -132,7 +129,7 @@ async def tts_stream_ws(websocket: WebSocket):
                 logger.info("Empty or whitespace-only input received, skipping audio generation.")
                 continue
 
-            voice = data.get("voice", "tara")
+            voice = data.get("voice")
             segment_id = data.get("segment_id", "no_segment_id")
 
             start_time = time.perf_counter()
@@ -184,7 +181,7 @@ async def tts_with_timestamps(websocket: WebSocket):
 @app.get("/api/voices", response_model=VoicesResponse)
 async def get_voices():
     """Get available voices with detailed information."""
-    default_voice = engine.available_voices[0] if engine and engine.available_voices else "tara"
+    default_voice = engine.available_voices[0] if engine and engine.available_voices else None
     return {
         "voices": VOICE_DETAILS,
         "default": default_voice,

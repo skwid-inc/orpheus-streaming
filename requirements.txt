@@ -8,3 +8,4 @@ uvicorn[standard]
 tqdm
 setuptools
 batched
+g2p_en
