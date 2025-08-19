@@ -1,22 +1,3 @@
-# Orpheus TTS Server - Docker Deployment
-
-This directory contains all files needed to deploy the Orpheus TTS Server using Docker.
-
-## 📁 Files
-
-- `Dockerfile` - Docker image definition optimized for GPU inference
-- `docker-compose.yml` - Docker Compose configuration for easy deployment
-- `.dockerignore` - Files to exclude from Docker build context
-- `docker-build.sh` - Script to build the Docker image
-- `docker-run.sh` - Script to run the container with proper settings
-
-## 📋 Prerequisites
-
-- NVIDIA GPU with CUDA support
-- Docker installed with NVIDIA Container Toolkit
-- AWS CLI installed (for ECR option only)
-- `.env` file configured with necessary parameters
-
 ## 🚀 Deployment Options
 
 ### Option 1: Use Pre-built Image from ECR (Fastest - ~5 minutes)
@@ -98,10 +79,7 @@ curl http://localhost:9090/api/voices | jq .
 curl -X POST http://localhost:9090/v1/audio/speech/stream \
   -H "Content-Type: application/json" \
   -d '{"input": "Hello world!", "voice": "tara", "model": "tts-1"}' \
-  --output test.pcm
-
-# Convert to WAV
-ffmpeg -f s16le -ar 24000 -ac 1 -i test.pcm test.wav
+  --output test.wav
 ```
 
 
@@ -132,10 +110,7 @@ Key configuration options in `.env`:
 
 ### Hardware Requirements
 
-- **Minimum**: NVIDIA GPU with 16GB VRAM
-- **Recommended**: NVIDIA A100 or RTX 4090
-- **Disk Space**: ~40GB for Docker image
-- **RAM**: 32GB+ recommended
+Use A100
 
 ## 🐛 Troubleshooting
 
@@ -148,21 +123,10 @@ Key configuration options in `.env`:
 - Check internet connectivity
 - For private models, verify `HF_TOKEN` is set correctly
 
-### Out of memory errors
-- Reduce `TRT_MAX_BATCH_SIZE` in .env
-- Adjust `TRT_FREE_GPU_MEMORY_FRACTION` (default: 0.85)
-
 ### Performance issues
 - First startup compiles TRT engine (can take 5-10 minutes)
 - Subsequent runs use cached engine
 - Check benchmark results with `/v1/benchmark` endpoint
-
-## 📊 Expected Performance
-
-On NVIDIA A100:
-- **TTFB**: ~330-340ms
-- **RTF**: ~0.92 (faster than real-time)
-- **Throughput**: ~92 tokens/second
 
 ## 🔒 Security Notes
 
