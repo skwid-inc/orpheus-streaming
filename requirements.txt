@@ -7,3 +7,4 @@ tensorrt_llm==0.20.0
 uvicorn[standard]
 tqdm
 setuptools
+batched

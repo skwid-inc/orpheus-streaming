@@ -4,6 +4,7 @@ setup_logger()
 import time
 import os
 from src.trt_engine import OrpheusModelTRT
+from src.tts_with_timestamps import TTSWithTimestamps
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 import logging
@@ -52,15 +53,22 @@ class VoicesResponse(BaseModel):
     count: int
     
 engine: OrpheusModelTRT = None
+tts_handler: TTSWithTimestamps = None
 VOICE_DETAILS: List[VoiceDetail] = []
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initializes the TTS engine on application startup."""
-    global engine, VOICE_DETAILS
+    global engine, tts_handler, VOICE_DETAILS
     logger.info("initializing Orpheus")
 
     engine = OrpheusModelTRT()
+    
+    # Warm up models to eliminate cold start penalties
+    logger.info("Warming up models for optimal performance...")
+    engine.warmup_models()
+    
+    tts_handler = TTSWithTimestamps(engine)
 
     logger.info("Orpheus initialized") 
     # Dynamically generate voice details from the loaded engine
@@ -167,6 +175,11 @@ async def tts_stream_ws(websocket: WebSocket):
         logger.info("Closing websocket connection.")
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.close()
+
+@app.websocket("/v1/tts")
+async def tts_with_timestamps(websocket: WebSocket):
+    """WebSocket endpoint with word timestamps support."""
+    await tts_handler.handle_websocket(websocket)
 
 @app.get("/api/voices", response_model=VoicesResponse)
 async def get_voices():
