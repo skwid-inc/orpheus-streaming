@@ -9,7 +9,6 @@ This directory contains all files needed to deploy the Orpheus TTS Server using 
 - `.dockerignore` - Files to exclude from Docker build context
 - `docker-build.sh` - Script to build the Docker image
 - `docker-run.sh` - Script to run the container with proper settings
-- `test_docker_deployment.sh` - Script to test the deployment
 
 ## 📋 Prerequisites
 
@@ -45,7 +44,7 @@ TRT_MAX_BEAM_WIDTH=1
 TRT_MAX_NUM_TOKENS=16384
 TRT_FREE_GPU_MEMORY_FRACTION=0.85
 TRT_KV_CACHE_MAX_TOKENS=512
-# HF_TOKEN=hf_xxxx  # Only needed for private models
+# HF_TOKEN=hf_xxxx  # Add yours
 EOF
 ```
 
@@ -105,10 +104,7 @@ curl -X POST http://localhost:9090/v1/audio/speech/stream \
 ffmpeg -f s16le -ar 24000 -ac 1 -i test.pcm test.wav
 ```
 
-### Full Test Suite
-```bash
-./deployment/test_docker_deployment.sh
-```
+
 
 ### Benchmark Performance
 ```bash
