@@ -3,10 +3,14 @@ httptools
 pydantic
 python-dotenv
 snac
-tensorrt_llm==0.19.0
 uvicorn[standard]
 tqdm
 setuptools
 batched
 g2p_en
 aiohttp
+
+google-generativeai>=0.3.0
+tqdm>=4.64.0
+python-dotenv>=0.19.0
+requests>=2.28.0
