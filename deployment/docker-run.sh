@@ -16,6 +16,8 @@ docker run \
   --name orpheus-tts \
   --rm \
   --env-file .env \
+  -e TRANSFORMERS_OFFLINE=0 \
+  -e HF_HUB_OFFLINE=0 \
   -p 9090:9090 \
   -v $(pwd)/logs:/app/logs \
   -v $(pwd)/outputs:/app/outputs \
