@@ -33,7 +33,7 @@ The hf repo of model `canopylabs/orpheus-3b-0.1-ft` has optimiser / fsdp files w
   - `python -m pip install --index-url https://download.pytorch.org/whl/cu124 torch==2.6.0 torchvision==0.21.0`
 
 - install project/runtime deps
-  - `python -m pip install fastapi "uvicorn[standard]" transformers==4.51.0 snac batched`
+  - `python -m pip install fastapi "uvicorn[standard]" transformers==4.51.0 snac batched google-generativeai>=0.3.0 g2p_en`
   - `python -m pip install tensorrt==10.9.0.34 tensorrt_llm==0.19.0`
 
 - pin cuda-python to avoid import issue
