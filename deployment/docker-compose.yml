@@ -1,0 +1,49 @@
+# Use with: docker compose up -d (not docker-compose)
+# Modern Docker uses 'docker compose' as a subcommand
+version: '3.8'
+
+services:
+  orpheus-tts:
+    # Option 1: Use pre-built image from ECR (comment out build section)
+    # image: 308804103509.dkr.ecr.us-west-2.amazonaws.com/orpheus-tts:latest
+    
+    # Option 2: Build from source (default)
+    image: orpheus-tts:latest
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    container_name: orpheus-tts-server
+    runtime: nvidia
+    env_file:
+      - ../.env
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
+    ports:
+      - "9090:9090"
+    volumes:
+      # Persist model cache to avoid re-downloading
+      - orpheus_hf_cache:/workspace/hf
+      # Optional: Mount logs and outputs
+      - ../logs:/app/logs
+      - ../outputs:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  orpheus_hf_cache:
+    driver: local
