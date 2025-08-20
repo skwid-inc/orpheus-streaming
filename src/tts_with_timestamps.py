@@ -300,20 +300,42 @@ class TTSWithTimestamps:
             await websocket.send_json({"type": "ERROR", "message": "Failed to create timeline"})
             return 0
         
+        # Helper: normalize words by removing commas and question marks; drop empty tokens
+        def normalize_word_timestamps(words_list, start_list, end_list):
+            norm_words = []
+            norm_start = []
+            norm_end = []
+            for w, s, e in zip(words_list, start_list, end_list):
+                cw = w.replace(",", "").replace("?", "")
+                if cw.strip():
+                    norm_words.append(cw)
+                    norm_start.append(s)
+                    norm_end.append(e)
+            return norm_words, norm_start, norm_end
+
         # Send initial timeline (non-final) as Cartesia-compatible timestamps event
         initial_src = timeline.get_timeline_event()
+        _w, _s, _e = (
+            initial_src.get("words", []),
+            initial_src.get("start", []),
+            initial_src.get("end", []),
+        )
+        _w, _s, _e = normalize_word_timestamps(_w, _s, _e)
         initial_event = {
             "type": "timestamps",
             "segment_id": segment_id,
             "context_id": effective_context_id,
             **({"request_id": request_id} if request_id else {}),
             "word_timestamps": {
-                "words": initial_src.get("words", []),
-                "start": initial_src.get("start", []),
-                "end": initial_src.get("end", []),
+                "words": _w,
+                "start": _s,
+                "end": _e,
             }
         }
         await websocket.send_json(initial_event)
+        logger.info(
+            f"TS seg={segment_id} words={len(_w)} preview={_w[:3]}...{_w[-3:] if len(_w)>3 else []}"
+        )
         if segment_stats is not None:
             st = segment_stats.setdefault(segment_id, {"bytes_total": 0})
             st["last_words"] = list(initial_event["word_timestamps"]["words"])
@@ -362,23 +384,25 @@ class TTSWithTimestamps:
                 if audio_seconds - last_rescale_time >= rescale_interval:
                     if timeline.rescale_to_audio_time(audio_seconds):
                         src = timeline.get_timeline_event()
+                        _w, _s, _e = normalize_word_timestamps(
+                            src.get("words", []), src.get("start", []), src.get("end", [])
+                        )
                         event = {
                             "type": "timestamps",
                             "segment_id": segment_id,
                             "context_id": effective_context_id,
                             **({"request_id": request_id} if request_id else {}),
-                            "word_timestamps": {
-                                "words": src.get("words", []),
-                                "start": src.get("start", []),
-                                "end": src.get("end", []),
-                            }
+                            "word_timestamps": {"words": _w, "start": _s, "end": _e}
                         }
                         await websocket.send_json(event)
+                        logger.info(
+                            f"TS seg={segment_id} words={len(_w)} preview={_w[:3]}...{_w[-3:] if len(_w)>3 else []}"
+                        )
                         if segment_stats is not None:
                             st = segment_stats.setdefault(segment_id, {"bytes_total": 0})
-                            st["last_words"] = list(event["word_timestamps"]["words"])
-                            st["last_start"] = list(event["word_timestamps"]["start"])
-                            st["last_end"] = list(event["word_timestamps"]["end"])
+                            st["last_words"] = list(_w)
+                            st["last_start"] = list(_s)
+                            st["last_end"] = list(_e)
                         timeline_updates += 1
                         logger.debug(f"Client {client_info}: Sent timeline update #{timeline_updates} at {audio_seconds:.2f}s for segment {segment_id}")
                     last_rescale_time = audio_seconds
@@ -404,19 +428,39 @@ class TTSWithTimestamps:
             timeline.finalized_index = len(timeline.words) - 1  # Mark all as finalized
             
             if is_final:
-                final_event = timeline.get_timeline_event()
-                final_event["type"] = "FINAL"
-                final_event["segment_id"] = segment_id
-                # If we have accumulated state, use total; else use this chunk
+                # Optionally send one last timestamps before FINAL
+                src = timeline.get_timeline_event()
+                _w, _s, _e = normalize_word_timestamps(
+                    src.get("words", []), src.get("start", []), src.get("end", [])
+                )
+                last_ts = {
+                    "type": "timestamps",
+                    "segment_id": segment_id,
+                    "context_id": effective_context_id,
+                    **({"request_id": request_id} if request_id else {}),
+                    "word_timestamps": {"words": _w, "start": _s, "end": _e}
+                }
+                await websocket.send_json(last_ts)
+                logger.info(
+                    f"TS seg={segment_id} words={len(_w)} preview={_w[:3]}...{_w[-3:] if len(_w)>3 else []}"
+                )
+
+                # Send minimal FINAL
                 total_bytes_final = bytes_sent
                 if segment_stats is not None:
                     total_bytes_final = segment_stats.get(segment_id, {}).get("bytes_total", bytes_sent)
-                final_event["duration_sec"] = total_bytes_final / BYTES_PER_SEC if BYTES_PER_SEC else 0.0
-                final_event["total_bytes"] = total_bytes_final
-                final_event["context_id"] = effective_context_id
-                if request_id:
-                    final_event["request_id"] = request_id
+                final_event = {
+                    "type": "FINAL",
+                    "segment_id": segment_id,
+                    "context_id": effective_context_id,
+                    **({"request_id": request_id} if request_id else {}),
+                    "duration_sec": total_bytes_final / BYTES_PER_SEC if BYTES_PER_SEC else 0.0,
+                    "total_bytes": total_bytes_final
+                }
                 await websocket.send_json(final_event)
+                logger.info(
+                    f"FINAL seg={segment_id} bytes={total_bytes_final} dur={final_event['duration_sec']:.2f}s"
+                )
             else:
                 # Not final: update last_timeline snapshot for later FINAL emission
                 snapshot = timeline.get_timeline_event()
