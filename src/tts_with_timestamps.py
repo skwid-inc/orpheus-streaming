@@ -153,12 +153,17 @@ class TTSWithTimestamps:
                     # End-of-input marker: emit a single FINAL for the last segment seen
                     if last_segment_id and last_segment_id in segment_stats:
                         stats = segment_stats[last_segment_id]
-                        final_event = (stats.get("last_timeline") or {}).copy()
-                        final_event["type"] = "FINAL"
-                        final_event["segment_id"] = last_segment_id
                         total_bytes = stats.get("bytes_total", 0)
-                        final_event["total_bytes"] = total_bytes
-                        final_event["duration_sec"] = total_bytes / BYTES_PER_SEC if BYTES_PER_SEC else 0.0
+                        final_event = {
+                            "type": "FINAL",
+                            "segment_id": last_segment_id,
+                            "context_id": last_segment_id,  # Cartesia expects context_id; using segment_id
+                            "words": stats.get("last_words", []),
+                            "start": stats.get("last_start", []),
+                            "end": stats.get("last_end", []),
+                            "total_bytes": total_bytes,
+                            "duration_sec": total_bytes / BYTES_PER_SEC if BYTES_PER_SEC else 0.0,
+                        }
                         try:
                             await websocket.send_json(final_event)
                         except Exception:
@@ -210,6 +215,7 @@ class TTSWithTimestamps:
         logger.info(f"Client {client_info}: Starting TTS processing for segment {segment_id}")
         
         # Send metadata
+        effective_context_id = context_id or segment_id
         if segment_meta_sent is None or segment_id not in segment_meta_sent:
             await websocket.send_json({
                 "type": "META",
@@ -217,7 +223,7 @@ class TTSWithTimestamps:
                 "channels": CHANNELS,
                 "format": "pcm_s16le",
                 "segment_id": segment_id,
-                **({"context_id": context_id} if context_id else {}),
+                "context_id": effective_context_id,
                 **({"request_id": request_id} if request_id else {})
             })
             if segment_meta_sent is not None:
@@ -237,35 +243,44 @@ class TTSWithTimestamps:
         # Non-speakable fast-path
         if not is_speakable(text):
             empty = {
-                "type": "TIMELINE_UPDATE",
+                "type": "timestamps",
                 "segment_id": segment_id,
-                "words": [],
-                "start": [],
-                "end": [],
+                "context_id": effective_context_id,
+                **({"request_id": request_id} if request_id else {}),
+                "word_timestamps": {
+                    "words": [],
+                    "start": [],
+                    "end": []
+                }
             }
-            if context_id:
-                empty["context_id"] = context_id
-            if request_id:
-                empty["request_id"] = request_id
             await websocket.send_json(empty)
 
             # Track for legacy flow FINAL at end-of-input
             if segment_stats is not None:
                 st = segment_stats.setdefault(segment_id, {"bytes_total": 0})
-                st["last_timeline"] = empty
+                st["last_words"] = []
+                st["last_start"] = []
+                st["last_end"] = []
 
             if is_final:
-                final_event = dict(empty)
-                final_event["type"] = "FINAL"
-                final_event["duration_sec"] = 0.0
-                final_event["total_bytes"] = 0
+                final_event = {
+                    "type": "FINAL",
+                    "segment_id": segment_id,
+                    "context_id": effective_context_id,
+                    **({"request_id": request_id} if request_id else {}),
+                    "words": [],
+                    "start": [],
+                    "end": [],
+                    "duration_sec": 0.0,
+                    "total_bytes": 0
+                }
                 await websocket.send_json(final_event)
 
                 if request_id or context_id:
                     await websocket.send_json({
                         "type": "SYNTHESIS_COMPLETED",
                         **({"request_id": request_id} if request_id else {}),
-                        **({"context_id": context_id} if context_id else {}),
+                        "context_id": effective_context_id,
                         "segment_id": segment_id,
                         "stats": {
                             "generation_time_ms": 0.0,
@@ -285,18 +300,25 @@ class TTSWithTimestamps:
             await websocket.send_json({"type": "ERROR", "message": "Failed to create timeline"})
             return 0
         
-        # Send initial timeline (non-final)
-        initial_event = timeline.get_timeline_event()
-        initial_event["type"] = "TIMELINE_UPDATE"
-        initial_event["segment_id"] = segment_id
-        if context_id:
-            initial_event["context_id"] = context_id
-        if request_id:
-            initial_event["request_id"] = request_id
+        # Send initial timeline (non-final) as Cartesia-compatible timestamps event
+        initial_src = timeline.get_timeline_event()
+        initial_event = {
+            "type": "timestamps",
+            "segment_id": segment_id,
+            "context_id": effective_context_id,
+            **({"request_id": request_id} if request_id else {}),
+            "word_timestamps": {
+                "words": initial_src.get("words", []),
+                "start": initial_src.get("start", []),
+                "end": initial_src.get("end", []),
+            }
+        }
         await websocket.send_json(initial_event)
         if segment_stats is not None:
             st = segment_stats.setdefault(segment_id, {"bytes_total": 0})
-            st["last_timeline"] = initial_event
+            st["last_words"] = list(initial_event["word_timestamps"]["words"])
+            st["last_start"] = list(initial_event["word_timestamps"]["start"])
+            st["last_end"] = list(initial_event["word_timestamps"]["end"])
         logger.info(f"Client {client_info}: Sent initial timeline with {len(timeline.words)} words for segment {segment_id}")
         
         # Start synthesis
@@ -323,7 +345,7 @@ class TTSWithTimestamps:
                         await websocket.send_json({
                             "type": "FIRST_AUDIO_CHUNK",
                             **({"request_id": request_id} if request_id else {}),
-                            **({"context_id": context_id} if context_id else {}),
+                            "context_id": effective_context_id,
                             "ttfb_ms": ttfb * 1000
                         })
                     first_chunk = False
@@ -339,17 +361,24 @@ class TTSWithTimestamps:
                 # Rescale timeline periodically
                 if audio_seconds - last_rescale_time >= rescale_interval:
                     if timeline.rescale_to_audio_time(audio_seconds):
-                        event = timeline.get_timeline_event()
-                        event["type"] = "TIMELINE_UPDATE"
-                        event["segment_id"] = segment_id
-                        if context_id:
-                            event["context_id"] = context_id
-                        if request_id:
-                            event["request_id"] = request_id
+                        src = timeline.get_timeline_event()
+                        event = {
+                            "type": "timestamps",
+                            "segment_id": segment_id,
+                            "context_id": effective_context_id,
+                            **({"request_id": request_id} if request_id else {}),
+                            "word_timestamps": {
+                                "words": src.get("words", []),
+                                "start": src.get("start", []),
+                                "end": src.get("end", []),
+                            }
+                        }
                         await websocket.send_json(event)
                         if segment_stats is not None:
                             st = segment_stats.setdefault(segment_id, {"bytes_total": 0})
-                            st["last_timeline"] = event
+                            st["last_words"] = list(event["word_timestamps"]["words"])
+                            st["last_start"] = list(event["word_timestamps"]["start"])
+                            st["last_end"] = list(event["word_timestamps"]["end"])
                         timeline_updates += 1
                         logger.debug(f"Client {client_info}: Sent timeline update #{timeline_updates} at {audio_seconds:.2f}s for segment {segment_id}")
                     last_rescale_time = audio_seconds
@@ -359,7 +388,7 @@ class TTSWithTimestamps:
                     await websocket.send_json({
                         "type": "PROGRESS",
                         **({"request_id": request_id} if request_id else {}),
-                        **({"context_id": context_id} if context_id else {}),
+                        "context_id": effective_context_id,
                         "segment_id": segment_id,
                         "chunks_sent": chunk_count,
                         "bytes_sent": bytes_sent
@@ -384,23 +413,21 @@ class TTSWithTimestamps:
                     total_bytes_final = segment_stats.get(segment_id, {}).get("bytes_total", bytes_sent)
                 final_event["duration_sec"] = total_bytes_final / BYTES_PER_SEC if BYTES_PER_SEC else 0.0
                 final_event["total_bytes"] = total_bytes_final
-                if context_id:
-                    final_event["context_id"] = context_id
+                final_event["context_id"] = effective_context_id
                 if request_id:
                     final_event["request_id"] = request_id
                 await websocket.send_json(final_event)
             else:
                 # Not final: update last_timeline snapshot for later FINAL emission
                 snapshot = timeline.get_timeline_event()
-                snapshot["type"] = "TIMELINE_UPDATE"
-                snapshot["segment_id"] = segment_id
-                if context_id:
-                    snapshot["context_id"] = context_id
-                if request_id:
-                    snapshot["request_id"] = request_id
                 if segment_stats is not None:
                     st = segment_stats.setdefault(segment_id, {"bytes_total": 0})
-                    st["last_timeline"] = snapshot
+                    st["last_words"] = list(snapshot.get("words", []))
+                    st["last_start"] = list(snapshot.get("start", []))
+                    st["last_end"] = list(snapshot.get("end", []))
+                if segment_stats is not None:
+                    st = segment_stats.setdefault(segment_id, {"bytes_total": 0})
+                    st["last_words"] = st.get("last_words", [])
             
             generation_time = time.perf_counter() - start_time
             logger.info(f"Client {client_info}: Completed segment {segment_id} - sent {bytes_sent:,} bytes in {chunk_count} chunks, duration: {final_audio_seconds:.2f}s, generation time: {generation_time*1000:.2f}ms, timeline updates: {timeline_updates}")
@@ -411,7 +438,7 @@ class TTSWithTimestamps:
                 await websocket.send_json({
                     "type": "SYNTHESIS_COMPLETED",
                     **({"request_id": request_id} if request_id else {}),
-                    **({"context_id": context_id} if context_id else {}),
+                    "context_id": effective_context_id,
                     "segment_id": segment_id,
                     "stats": {
                         "generation_time_ms": generation_time * 1000,
