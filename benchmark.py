@@ -13,7 +13,7 @@ SERVER_HOST = "localhost"
 SERVER_PORT = "9090"
 BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
 TEST_TEXT = "Of course, we can schedule a payment for seven days from today, which would be next Friday, February twenty twenty-five."
-# Voice parameter removed - model trained with voice=None
+VOICE = "tara"
 NUM_RUNS = 5
 WARMUP_TEXT = "Doing warmup"
 OUTPUT_DIR = "outputs"
@@ -56,14 +56,15 @@ def generate_wav_header(sample_rate=SAMPLE_RATE, bits_per_sample=BITS_PER_SAMPLE
     
     return bytes(header)
 
-def run_single_test(text, save_file=None, session=None):
+def run_single_test(text, voice, save_file=None, session=None):
     """Run a single TTS test and return timing metrics.
 
     Parameters
     ----------
     text : str
         Prompt text to send to the TTS service.
-
+    voice : str
+        Voice name.
     save_file : str or None, optional
         If provided, the received raw PCM stream will be wrapped with a WAV header
         and written to this path.
@@ -83,7 +84,8 @@ def run_single_test(text, save_file=None, session=None):
         response = http.post(
             f"{BASE_URL}/v1/audio/speech/stream",
             json={
-                "input": text
+                "input": text,
+                "voice": voice,
             },
             stream=True,
             timeout=30
@@ -141,7 +143,7 @@ def run_single_test(text, save_file=None, session=None):
 def main():
     print("TTS Streaming Benchmark")
     print(f"Text: '{TEST_TEXT}' ({len(TEST_TEXT)} characters)")
-
+    print(f"Voice: {VOICE}")
     print(f"Runs: {NUM_RUNS}")
     print(f"Base URL: {BASE_URL}")
     print("Note: Converting raw audio streams to WAV format with proper headers")
@@ -151,7 +153,7 @@ def main():
 
         # Warmup run
         print("\nRunning warmup...")
-        warmup_result = run_single_test(WARMUP_TEXT, session=session)
+        warmup_result = run_single_test(WARMUP_TEXT, VOICE, session=session)
         if warmup_result['success']:
             print(f"Warmup complete: TTFB {warmup_result['ttfb']:.3f}s, Total {warmup_result['total_time']:.3f}s")
         else:
@@ -166,7 +168,7 @@ def main():
             
             # Save as .wav files with proper headers
             audio_filename = f"{OUTPUT_DIR}/run_{run}.wav"
-            result = run_single_test(TEST_TEXT, audio_filename, session=session)
+            result = run_single_test(TEST_TEXT, VOICE, audio_filename, session=session)
             
             if result['success']:
                 print(f" TTFB: {result['ttfb']:.3f}s, Total: {result['total_time']:.3f}s")

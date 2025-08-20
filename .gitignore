@@ -15,8 +15,3 @@ api_benchmark_outputs/
 # Generated audio files
 *.wav
 *.pcm
-
-# Environment files
-.env
-.env.local
-.env.backup

@@ -12,7 +12,7 @@ import statistics
 SERVER_HOST = "localhost"
 SERVER_PORT = "9090"
 BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
-# Voice parameter removed - model trained with voice=None
+VOICE = "tara"
 
 # Audio parameters for WAV header generation
 SAMPLE_RATE = 24000
@@ -68,7 +68,7 @@ def generate_wav_header(sample_rate=SAMPLE_RATE, bits_per_sample=BITS_PER_SAMPLE
     return bytes(header)
 
 
-async def tts_request(session: aiohttp.ClientSession, text: str):
+async def tts_request(session: aiohttp.ClientSession, text: str, voice: str):
     """Make a single TTS request using aiohttp for async HTTP."""
     start_time = time.time()
     ttfb = None
@@ -83,7 +83,8 @@ async def tts_request(session: aiohttp.ClientSession, text: str):
         async with session.post(
             f"{BASE_URL}/v1/audio/speech/stream",
             json={
-                "input": text
+                "input": text,
+                "voice": voice,
             },
             timeout=aiohttp.ClientTimeout(total=30)
         ) as response:
@@ -190,20 +191,20 @@ async def tts_request(session: aiohttp.ClientSession, text: str):
         )
 
 
-async def run_concurrent_requests(n: int, text: str):
+async def run_concurrent_requests(n: int, text: str, voice: str):
     """Run n concurrent TTS requests."""
     # Create a single session for all requests to enable connection pooling
     async with aiohttp.ClientSession() as session:
         # Warmup request
         print("Running warmup request...")
-        warmup_result = await tts_request(session, "Doing warmup")
+        warmup_result = await tts_request(session, "Doing warmup", voice)
         if warmup_result.success and warmup_result.ttfb:
             print(f"Warmup complete: TTFB {warmup_result.ttfb:.3f}s")
         else:
             print(f"Warmup failed: {warmup_result.error}")
         
         # Run concurrent requests
-        tasks = [tts_request(session, text) for _ in range(n)]
+        tasks = [tts_request(session, text, voice) for _ in range(n)]
         results = await asyncio.gather(*tasks)
         
     return results
@@ -345,7 +346,7 @@ def main():
     """Main benchmark function."""
     print("TTS HTTP Streaming Latency Profiler")
     print(f"Server: {BASE_URL}")
-
+    print(f"Voice: {VOICE}")
     
     # Configuration
     CONCURRENCY = 4
@@ -376,7 +377,7 @@ def main():
         print(f"{'='*60}")
         
         # Run the concurrent requests
-        results = asyncio.run(run_concurrent_requests(CONCURRENCY, text))
+        results = asyncio.run(run_concurrent_requests(CONCURRENCY, text, VOICE))
         all_results.append(results)
         
         # Print metrics for this run

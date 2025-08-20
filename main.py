@@ -29,21 +29,38 @@ logger = logging.getLogger(__name__)
 
 class TTSRequest(BaseModel):
     input: str = "Hey there, looks like you forgot to provide a prompt!"
+    voice: str | None = None
 
 
 class TTSStreamRequest(BaseModel):
     input: str
+    voice: str | None = None
     continue_: bool = Field(True, alias="continue")
     segment_id: str
 
 
+class VoiceDetail(BaseModel):
+    name: str
+    description: str
+    language: str
+    gender: str
+    accent: str
+    preview_url: Optional[str] = None
+
+
+class VoicesResponse(BaseModel):
+    voices: List[VoiceDetail]
+    default: str
+    count: int
+    
 engine: OrpheusModelTRT = None
 tts_handler: TTSWithTimestamps = None
+VOICE_DETAILS: List[VoiceDetail] = []
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initializes the TTS engine on application startup."""
-    global engine, tts_handler
+    global engine, tts_handler, VOICE_DETAILS
     logger.info("initializing Orpheus")
 
     engine = OrpheusModelTRT()
@@ -52,6 +69,16 @@ async def lifespan(app: FastAPI):
     tts_handler = TTSWithTimestamps(engine)
 
     logger.info("Orpheus initialized") 
+    # Dynamically generate voice details from the loaded engine
+    VOICE_DETAILS = [
+        VoiceDetail(
+            name=voice,
+            description=f"A standard {voice} voice.",
+            language="en",
+            gender="unknown",
+            accent="american"
+        ) for voice in engine.available_voices
+    ]
     yield
     # Clean up the model and other resources if needed
 
@@ -70,7 +97,8 @@ async def tts_stream(data: TTSRequest):
         first_chunk = True
         try:
             audio_generator = engine.generate_speech_async(
-                prompt=data.input
+                prompt=data.input,
+                voice=data.voice,
             )
 
             async for chunk in audio_generator:
@@ -102,6 +130,7 @@ async def tts_stream_ws(websocket: WebSocket):
                 logger.info("Empty or whitespace-only input received, skipping audio generation.")
                 continue
 
+            voice = data.get("voice")
             segment_id = data.get("segment_id", "no_segment_id")
 
             start_time = time.perf_counter()
@@ -111,7 +140,8 @@ async def tts_stream_ws(websocket: WebSocket):
                 if input_text:
                     logger.info(f"Generating audio for input: '{input_text}'")
                     audio_generator = engine.generate_speech_async(
-                        prompt=input_text
+                        prompt=input_text,
+                        voice=voice,
                     )
 
                     first_chunk = True
@@ -148,6 +178,17 @@ async def tts_stream_ws(websocket: WebSocket):
 async def tts_with_timestamps(websocket: WebSocket):
     """WebSocket endpoint with word timestamps support."""
     await tts_handler.handle_websocket(websocket)
+
+@app.get("/api/voices", response_model=VoicesResponse)
+async def get_voices():
+    """Get available voices with detailed information."""
+    default_voice = engine.available_voices[0] if engine and engine.available_voices else None
+    return {
+        "voices": VOICE_DETAILS,
+        "default": default_voice,
+        "count": len(VOICE_DETAILS)
+    }
+
 
 @app.post("/v1/benchmark", response_model=BenchmarkResult)
 async def run_benchmark(request: BenchmarkRequest):
