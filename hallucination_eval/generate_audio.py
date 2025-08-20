@@ -69,8 +69,7 @@ def synthesize_text(text: str, base_url: str, session: requests.Session) -> Opti
         response = session.post(
             f"{base_url}/v1/audio/speech/stream",
             json={
-                "input": text,
-                "voice": "tara"
+                "input": text
             },
             stream=True,
             timeout=30

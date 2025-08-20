@@ -20,7 +20,6 @@ CHANNELS = 1
 
 class BenchmarkRequest(BaseModel):
     text: str = Field(..., description="Text to benchmark TTS generation")
-    voice: str = Field(..., description="Voice to use for generation")
     num_runs: int = Field(5, ge=1, le=20, description="Number of benchmark runs")
     warmup: bool = Field(True, description="Whether to perform a warmup run")
     warmup_text: Optional[str] = Field("Doing warmup", description="Text for warmup run")
@@ -30,7 +29,6 @@ class BenchmarkResult(BaseModel):
     successful_runs: int
     failed_runs: int
     text_length: int
-    voice: str
     metrics: Dict[str, Any]
 
 
@@ -66,7 +64,7 @@ class BenchmarkService:
         
         return bytes(header)
     
-    async def run_single_test(self, session: aiohttp.ClientSession, text: str, voice: str, save_file: Optional[str] = None) -> Dict[str, Any]:
+    async def run_single_test(self, session: aiohttp.ClientSession, text: str, save_file: Optional[str] = None) -> Dict[str, Any]:
         """Run a single TTS test and return timing metrics."""
         start_time = time.time()
         ttfb = None
@@ -74,7 +72,7 @@ class BenchmarkService:
         try:
             async with session.post(
                 self.tts_url,
-                json={"input": text, "voice": voice},
+                json={"input": text},
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as response:
                 if response.status == 200:
@@ -131,7 +129,7 @@ class BenchmarkService:
                 # Warmup run
                 if request.warmup:
                     logger.info("Running warmup...")
-                    warmup_result = await self.run_single_test(session, request.warmup_text, request.voice)
+                    warmup_result = await self.run_single_test(session, request.warmup_text)
                     if warmup_result['success']:
                         logger.info(f"Warmup complete: TTFB {warmup_result['ttfb']:.3f}s")
                     else:
@@ -145,7 +143,7 @@ class BenchmarkService:
                 for run in range(1, request.num_runs + 1):
                     logger.info(f"Running benchmark {run}/{request.num_runs}...")
                     save_path = os.path.join(self.output_dir, f"run_{run}.wav")
-                    result = await self.run_single_test(session, request.text, request.voice, save_path)
+                    result = await self.run_single_test(session, request.text, save_path)
                     
                     if result['success']:
                         results.append(result)
@@ -199,7 +197,6 @@ class BenchmarkService:
                 successful_runs=len(results),
                 failed_runs=failed_runs,
                 text_length=len(request.text),
-                voice=request.voice,
                 metrics=metrics
             )
         
