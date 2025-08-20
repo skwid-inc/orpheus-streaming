@@ -12,10 +12,6 @@ logger = logging.getLogger(__name__)
 class OrpheusModelTRT:
     def __init__(self):
         self.model_name = os.getenv("MODEL_NAME", "canopylabs/orpheus-3b-0.1-ft")
-        
-        # Load available voices from environment variables
-        voices_str = os.getenv("AVAILABLE_VOICES", "tara,zoe,jess,zac,leo,mia,julia,leah")
-        self.available_voices = [voice.strip() for voice in voices_str.split(',')]
 
         # Load sampling parameters from environment variables
         self.temperature = float(os.getenv("TRT_TEMPERATURE", 0.1))
@@ -73,14 +69,9 @@ class OrpheusModelTRT:
                     )
         )
     
-    def validate_voice(self, voice):
-        if voice:
-            if voice not in self.available_voices:
-                raise ValueError(f"Voice {voice} is not available for model {self.model_name}")
-    
-    def _format_prompt(self, prompt, voice=None):
+    def _format_prompt(self, prompt):
         # This formatting is specific to the Orpheus model
-        adapted_prompt = f"{voice}: {prompt}" if voice else prompt
+        adapted_prompt = prompt
         prompt_tokens = self.tokenizer(adapted_prompt, return_tensors="pt")
         start_token = torch.tensor([[ 128259]], dtype=torch.int64)
         end_tokens = torch.tensor([[128009, 128260]], dtype=torch.int64)
@@ -88,9 +79,8 @@ class OrpheusModelTRT:
         prompt_string = self.tokenizer.decode(all_input_ids[0], skip_special_tokens=False)
         return prompt_string
 
-    async def generate_tokens_async(self, prompt, voice):
-        self.validate_voice(voice)
-        prompt_string = self._format_prompt(prompt, voice)
+    async def generate_tokens_async(self, prompt):
+        prompt_string = self._format_prompt(prompt)
         
         sampling_params = SamplingParams(
             temperature=self.temperature,
@@ -107,11 +97,11 @@ class OrpheusModelTRT:
         ):
             yield output.outputs[0].text
     
-    async def generate_speech_async(self, prompt, voice):
+    async def generate_speech_async(self, prompt):
         """
         Generates speech by first generating tokens and then decoding them into audio asynchronously.
         This function is a simple wrapper to stay consistent with the original engine class.
         """
-        token_generator = self.generate_tokens_async(prompt, voice)
+        token_generator = self.generate_tokens_async(prompt)
         async for audio_chunk in tokens_decoder(token_generator):
             yield audio_chunk 
