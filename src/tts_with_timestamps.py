@@ -7,6 +7,7 @@ import json
 import time
 import logging
 import uuid
+import re
 from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 from typing import Optional, AsyncGenerator
@@ -223,6 +224,59 @@ class TTSWithTimestamps:
                 segment_meta_sent.add(segment_id)
         logger.info(f"Client {client_info}: Sent audio metadata for segment {segment_id}")
         
+        # Speakability helpers
+        _NON_SPEAKABLE_RE = re.compile(r"^\s*[-–—.,;:!?…·•*#_/\\()\[\]{}'\"|~`^]+\s*$")
+
+        def is_speakable(text_val: str) -> bool:
+            if not text_val or not text_val.strip():
+                return False
+            if _NON_SPEAKABLE_RE.match(text_val):
+                return False
+            return any(ch.isalnum() for ch in text_val)
+
+        # Non-speakable fast-path
+        if not is_speakable(text):
+            empty = {
+                "type": "TIMELINE_UPDATE",
+                "segment_id": segment_id,
+                "words": [],
+                "start": [],
+                "end": [],
+            }
+            if context_id:
+                empty["context_id"] = context_id
+            if request_id:
+                empty["request_id"] = request_id
+            await websocket.send_json(empty)
+
+            # Track for legacy flow FINAL at end-of-input
+            if segment_stats is not None:
+                st = segment_stats.setdefault(segment_id, {"bytes_total": 0})
+                st["last_timeline"] = empty
+
+            if is_final:
+                final_event = dict(empty)
+                final_event["type"] = "FINAL"
+                final_event["duration_sec"] = 0.0
+                final_event["total_bytes"] = 0
+                await websocket.send_json(final_event)
+
+                if request_id or context_id:
+                    await websocket.send_json({
+                        "type": "SYNTHESIS_COMPLETED",
+                        **({"request_id": request_id} if request_id else {}),
+                        **({"context_id": context_id} if context_id else {}),
+                        "segment_id": segment_id,
+                        "stats": {
+                            "generation_time_ms": 0.0,
+                            "audio_duration_s": 0.0,
+                            "total_bytes": 0,
+                            "chunks": 0,
+                            "rtf": 0.0,
+                        }
+                    })
+            return 0
+
         # Create timeline
         timeline = self.timestamp_gen.create_timeline(text, speaking_rate)
         
