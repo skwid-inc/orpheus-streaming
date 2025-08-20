@@ -52,7 +52,7 @@ def print_timeline_details(text, timeline, show_rescaling=True):
             if audio_time > timeline.end[-1]:
                 break
             # Create fresh timeline for testing
-            test_timeline = generator.create_timeline(text, voice_id="default", speaking_rate="normal")
+            test_timeline = generator.create_timeline(text,  speaking_rate="normal")
             updated = test_timeline.rescale_to_audio_time(audio_time)
             finalized = test_timeline.finalized_index
             finalized_word = test_timeline.words[finalized] if finalized >= 0 else "none"
@@ -74,7 +74,7 @@ def test_basic_sentences():
     ]
     
     for text in test_cases:
-        timeline = generator.create_timeline(text, voice_id="default", speaking_rate="normal")
+        timeline = generator.create_timeline(text,  speaking_rate="normal")
         print_timeline_details(text, timeline, show_rescaling=False)
 
 
@@ -119,7 +119,7 @@ def test_text_normalization():
     ]
     
     for text in test_cases:
-        timeline = generator.create_timeline(text, voice_id="default", speaking_rate="normal")
+        timeline = generator.create_timeline(text,  speaking_rate="normal")
         print_timeline_details(text, timeline, show_rescaling=True)
 
 
@@ -157,7 +157,7 @@ def test_edge_cases():
     ]
     
     for text in test_cases:
-        timeline = generator.create_timeline(text, voice_id="default", speaking_rate="normal")
+        timeline = generator.create_timeline(text,  speaking_rate="normal")
         print_timeline_details(text, timeline, show_rescaling=False)
 
 
@@ -170,7 +170,7 @@ def test_speaking_rates():
     test_text = "The quick brown fox jumps over the lazy dog."
     
     for rate in ["slow", "normal", "fast"]:
-        timeline = generator.create_timeline(test_text, voice_id="default", speaking_rate=rate)
+        timeline = generator.create_timeline(test_text,  speaking_rate=rate)
         if timeline:
             duration = timeline.end[-1]
             print(f"\nRate: {rate:6} | Duration: {duration:.3f}s | Text: \"{test_text}\"")
@@ -184,7 +184,7 @@ def test_rescaling_behavior():
     
     # Multi-sentence text to test sentence boundary rescaling
     test_text = "First sentence here. Second sentence now! Third one? Final statement."
-    timeline = generator.create_timeline(test_text, voice_id="default", speaking_rate="normal")
+    timeline = generator.create_timeline(test_text,  speaking_rate="normal")
     
     if not timeline:
         print("Failed to create timeline")
@@ -205,7 +205,7 @@ def test_rescaling_behavior():
             break
             
         # Create fresh timeline
-        test_timeline = generator.create_timeline(test_text, voice_id="default", speaking_rate="normal")
+        test_timeline = generator.create_timeline(test_text,  speaking_rate="normal")
         test_timeline.rescale_to_audio_time(audio_time)
         
         print(f"\nAfter rescaling at {audio_time:.1f}s (finalized up to index {test_timeline.finalized_index}):")
@@ -224,7 +224,7 @@ def test_timeline_events():
     print("=" * 80)
     
     test_text = "Hello world, this is a test."
-    timeline = generator.create_timeline(test_text, voice_id="default", speaking_rate="normal")
+    timeline = generator.create_timeline(test_text,  speaking_rate="normal")
     
     if timeline:
         event = timeline.get_timeline_event()

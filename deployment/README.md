@@ -10,7 +10,7 @@ TRANSFORMERS_OFFLINE=0
 HF_HUB_OFFLINE=0
 MODEL_NAME=TrySalient/tts-collections-test-verbalized
 LOG_LEVEL=INFO
-AVAILABLE_VOICES=tara,zoe,jess,zac,leo,mia,julia,leah
+# Voice parameter removed - model trained with voice=None
 TRT_TEMPERATURE=0.1
 TRT_TOP_P=0.95
 TRT_MAX_TOKENS=1200
@@ -72,13 +72,10 @@ cd deployment && docker compose up -d
 
 ### Quick Test
 ```bash
-# Check available voices
-curl http://localhost:9090/api/voices | jq .
-
 # Generate speech
 curl -X POST http://localhost:9090/v1/audio/speech/stream \
   -H "Content-Type: application/json" \
-  -d '{"input": "Hello world!", "voice": "tara", "model": "tts-1"}' \
+  -d '{"input": "Hello world!"}' \
   --output test.wav
 ```
 
@@ -90,7 +87,6 @@ curl -X POST http://localhost:9090/v1/benchmark \
   -H "Content-Type: application/json" \
   -d '{
     "text": "This is a benchmark test.",
-    "voice": "tara",
     "num_runs": 5,
     "warmup": true
   }' | jq .
@@ -104,7 +100,7 @@ Key configuration options in `.env`:
 
 - `MODEL_NAME`: HuggingFace model to use (default: TrySalient/tts-collections-test-verbalized)
 - `HF_TOKEN`: (Optional) HuggingFace token for private models
-- `AVAILABLE_VOICES`: Comma-separated list of voice names
+
 - `TRT_*`: TensorRT-LLM configuration parameters
 - `LOG_LEVEL`: Logging verbosity (INFO, DEBUG, etc.)
 

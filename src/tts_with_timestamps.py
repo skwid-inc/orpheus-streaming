@@ -47,13 +47,12 @@ class TTSWithTimestamps:
                     logger.info("Empty text received, skipping")
                     continue
                 
-                voice_id = data.get("voice_id", data.get("voice", "tara"))
                 speaking_rate = data.get("speaking_rate", "normal")
                 segment_id = data.get("segment_id", "default")
                 
                 # Process the request
                 await self._process_tts_request(
-                    websocket, text, voice_id, speaking_rate, segment_id
+                    websocket, text, speaking_rate, segment_id
                 )
                 
         except WebSocketDisconnect:
@@ -67,7 +66,7 @@ class TTSWithTimestamps:
                 await websocket.close()
     
     async def _process_tts_request(self, websocket: WebSocket, text: str, 
-                                  voice_id: str, speaking_rate: str, segment_id: str):
+                                  speaking_rate: str, segment_id: str):
         """Process a single TTS request with timestamps."""
         
         # Send metadata
@@ -80,7 +79,7 @@ class TTSWithTimestamps:
         })
         
         # Create timeline
-        timeline = self.timestamp_gen.create_timeline(text, voice_id, speaking_rate)
+        timeline = self.timestamp_gen.create_timeline(text, speaking_rate)
         
         if not timeline:
             logger.warning("Failed to create timeline")
@@ -99,8 +98,7 @@ class TTSWithTimestamps:
         try:
             # Generate audio
             audio_generator = self.engine.generate_speech_async(
-                prompt=text,
-                voice=voice_id
+                prompt=text
             )
             
             first_chunk = True

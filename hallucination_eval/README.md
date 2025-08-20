@@ -37,7 +37,7 @@ Scripts for evaluating TTS audio quality and detecting hallucinations using Goog
 
 1. **Orpheus TTS Server**: Ensure the server is running on localhost:9090
    ```bash
-   curl http://localhost:9090/v1/voices
+   curl http://localhost:9090/v1/audio/speech/stream -X POST -H "Content-Type: application/json" -d '{"input": "test"}' --output test.wav
    ```
 
 2. **Python Environment**: Use the `trt_new` conda environment
