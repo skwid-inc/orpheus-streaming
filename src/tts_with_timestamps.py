@@ -154,6 +154,7 @@ class TTSWithTimestamps:
                     if last_segment_id and last_segment_id in segment_stats:
                         stats = segment_stats[last_segment_id]
                         total_bytes = stats.get("bytes_total", 0)
+                        logger.debug(f"Client {client_info}: End-of-input for segment {last_segment_id}, stats: {stats}")
                         final_event = {
                             "type": "FINAL",
                             "segment_id": last_segment_id,
@@ -180,6 +181,9 @@ class TTSWithTimestamps:
                 speaking_rate = data.get("speaking_rate", "normal")
                 segment_id = data.get("segment_id", "default")
                 logger.info(f"Client {client_info}: Received TTS request #{total_requests} - text: '{text}' (length: {len(text)} chars), segment_id: {segment_id}, speaking_rate: {speaking_rate}")
+                # Log existing segment stats if this segment_id was used before
+                if segment_id in segment_stats:
+                    logger.warning(f"Client {client_info}: Segment ID {segment_id} reused! Existing stats: {segment_stats[segment_id]}")
                 bytes_sent = await self._process_tts_request(
                     websocket, text, speaking_rate, segment_id, client_info,
                     segment_meta_sent=segment_meta_sent, segment_stats=segment_stats,
@@ -257,10 +261,12 @@ class TTSWithTimestamps:
 
             # Track for legacy flow FINAL at end-of-input
             if segment_stats is not None:
-                st = segment_stats.setdefault(segment_id, {"bytes_total": 0})
+                st = segment_stats.setdefault(segment_id, {})
+                st["bytes_total"] = 0  # Explicitly set to 0 for non-speakable
                 st["last_words"] = []
                 st["last_start"] = []
                 st["last_end"] = []
+                logger.debug(f"Client {client_info}: Non-speakable text for segment {segment_id}, set bytes_total=0")
 
             if is_final:
                 final_event = {
@@ -469,9 +475,6 @@ class TTSWithTimestamps:
                     st["last_words"] = list(snapshot.get("words", []))
                     st["last_start"] = list(snapshot.get("start", []))
                     st["last_end"] = list(snapshot.get("end", []))
-                if segment_stats is not None:
-                    st = segment_stats.setdefault(segment_id, {"bytes_total": 0})
-                    st["last_words"] = st.get("last_words", [])
             
             generation_time = time.perf_counter() - start_time
             logger.info(f"Client {client_info}: Completed segment {segment_id} - sent {bytes_sent:,} bytes in {chunk_count} chunks, duration: {final_audio_seconds:.2f}s, generation time: {generation_time*1000:.2f}ms, timeline updates: {timeline_updates}")

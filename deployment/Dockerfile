@@ -53,6 +53,9 @@ RUN pip install tensorrt==10.9.0.34 tensorrt_llm==0.19.0
 # Pin cuda-python to avoid import issues
 RUN pip install --force-reinstall cuda-python==12.6.0
 
+# Download required NLTK data for g2p_en
+RUN python3 -c "import nltk; nltk.download('averaged_perceptron_tagger_eng')"
+
 # Set working directory
 WORKDIR /app
 

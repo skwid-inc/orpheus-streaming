@@ -348,7 +348,7 @@ def main():
 
     
     # Configuration
-    CONCURRENCY = 4
+    CONCURRENCY = 16
     NUM_RUNS = 10
     SLEEP_BETWEEN_RUNS = 2.0  # seconds
     
