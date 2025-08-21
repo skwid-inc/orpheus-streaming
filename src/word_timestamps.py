@@ -89,10 +89,9 @@ class SimpleG2P:
 
 
 class VoiceProfile:
-    """Per-voice timing parameters."""
+    """Timing parameters."""
     
-    def __init__(self, voice_id: str):
-        self.voice_id = voice_id
+    def __init__(self):
         self.ms_per_phone = 78.0
         self.pause_priors_ms = {
             "none": 0,
@@ -116,21 +115,8 @@ class VoiceProfile:
         self.load_from_file()
     
     def load_from_file(self):
-        """Load voice profile from JSON if exists."""
-        profile_path = Path(f"voice_profiles/{self.voice_id}.json")
-        if profile_path.exists():
-            try:
-                with open(profile_path) as f:
-                    data = json.load(f)
-                    self.ms_per_phone = data.get("ms_per_phone", self.ms_per_phone)
-                    self.pause_priors_ms.update(data.get("pause_priors_ms", {}))
-                    self.min_word_ms = data.get("min_word_ms", self.min_word_ms)
-                    self.speed_factors.update(data.get("speed_factors", {}))
-                    self.guard_ms = data.get("guard_ms", self.guard_ms)
-                    self.rescale_interval_ms = data.get("rescale_interval_ms", self.rescale_interval_ms)
-                logger.info(f"Loaded voice profile for {self.voice_id}")
-            except Exception as e:
-                logger.warning(f"Failed to load voice profile: {e}")
+        """Load default timing parameters."""
+        # Using default values - no file loading needed
 
 
 class WordTimeline:
@@ -280,15 +266,9 @@ class WordTimestampGenerator:
     def __init__(self):
         self.normalizer = TextNormalizer()
         self.g2p = SimpleG2P()
-        self.voice_profiles = {}
+        self.voice_profile = VoiceProfile()
     
-    def get_voice_profile(self, voice_id: str) -> VoiceProfile:
-        """Get or create voice profile."""
-        if voice_id not in self.voice_profiles:
-            self.voice_profiles[voice_id] = VoiceProfile(voice_id)
-        return self.voice_profiles[voice_id]
-    
-    def create_timeline(self, text: str, voice_id: str, 
+    def create_timeline(self, text: str, 
                        speaking_rate: str = "normal") -> WordTimeline:
         """Create a word timeline for the given text."""
         # Normalize and tokenize
@@ -300,9 +280,6 @@ class WordTimestampGenerator:
         # Get phone counts
         phone_counts = self.g2p.get_phone_counts(words)
         
-        # Get voice profile
-        voice_profile = self.get_voice_profile(voice_id)
-        
         # Create timeline
         return WordTimeline(words, punct_classes, phone_counts, 
-                          voice_profile, speaking_rate)
+                          self.voice_profile, speaking_rate)

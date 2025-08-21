@@ -11,7 +11,7 @@ class OrpheusModel:
     def __init__(self, model_name, dtype=torch.bfloat16, tokenizer=None, max_model_len=2048, gpu_memory_utilization=0.9, max_num_batched_tokens=8192, max_num_seqs=4, enable_chunked_prefill=True):
         self.model_name = model_name
         self.dtype = dtype
-        self.available_voices = ["zoe", "zac","jess", "leo", "mia", "julia", "leah"]
+
         self.max_model_len = max_model_len
         self.gpu_memory_utilization = gpu_memory_utilization
         self.max_num_batched_tokens = max_num_batched_tokens
@@ -42,13 +42,8 @@ class OrpheusModel:
         )
         return AsyncLLMEngine.from_engine_args(engine_args)
     
-    def validate_voice(self, voice):
-        if voice:
-            if voice not in self.engine.available_voices:
-                raise ValueError(f"Voice {voice} is not available for model {self.model_name}")
-    
-    def _format_prompt(self, prompt, voice="tara"):
-        adapted_prompt = f"{voice}: {prompt}"
+    def _format_prompt(self, prompt):
+        adapted_prompt = prompt
         prompt_tokens = self.tokenizer(adapted_prompt, return_tensors="pt")
         start_token = torch.tensor([[ 128259]], dtype=torch.int64)
         end_tokens = torch.tensor([[128009, 128260, 128261, 128257]], dtype=torch.int64)
@@ -57,8 +52,8 @@ class OrpheusModel:
         return prompt_string
 
 
-    def generate_tokens_sync(self, prompt, voice=None, request_id="req-001", temperature=0.6, top_p=0.8, max_tokens=1200, stop_token_ids = [49158], repetition_penalty=1.3):
-        prompt_string = self._format_prompt(prompt, voice)
+    def generate_tokens_sync(self, prompt, request_id="req-001", temperature=0.6, top_p=0.8, max_tokens=1200, stop_token_ids = [49158], repetition_penalty=1.3):
+        prompt_string = self._format_prompt(prompt)
         sampling_params = SamplingParams(
         temperature=temperature,
         top_p=top_p,
