@@ -1,22 +1,41 @@
-__pycache__
-*/__pycache__
+# Byte-compiled / cache
+__pycache__/
+*/__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Build/metadata
+*.egg-info/
+*.dist-info/
+
+# Virtual environments
+trt_clean/
+.venv/
+.venv*/
+venv/
+venv*/
+
+# Outputs and logs
 outputs/*
 logs
-*.cache
-orpheus
-
-# Hallucination evaluation outputs
 hallucination_eval/outputs/
 hallucination_eval/__pycache__/
-
-# API benchmark outputs
 api_benchmark_outputs/
 
 # Generated audio files
 *.wav
 *.pcm
 
-# Environment files
+# Misc artifacts
+model.cache
+=0.3.0
+
+# Env files
 .env
 .env.local
 .env.backup
+
+# Project-specific
+orpheus

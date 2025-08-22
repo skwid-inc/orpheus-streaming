@@ -165,7 +165,7 @@ async def tokens_decoder(
             for tok_val in new_tokens:
                 token = turn_token_into_id(int(tok_val), count)
                 # Skip invalid/negative/out-of-range tokens early
-                if token is None or token <= 0 or token > 4096:
+                if token is None or token <= 0 or token >= 4096:
                     continue
                 buffer.append(token)
                 count += 1
@@ -192,10 +192,14 @@ async def tokens_decoder(
         task: None | Awaitable[bytes | None] = await audio_queue.get()
         if task is None:
             break
-        audio_bytes = await task
-        if audio_bytes is not None:
-            yield audio_bytes
-        audio_queue.task_done()
+        try:
+            audio_bytes = await task
+            if audio_bytes is not None:
+                yield audio_bytes
+        except Exception as e:
+            logging.exception("convert_to_audio task failed", exc_info=e)
+        finally:
+            audio_queue.task_done()
     assert audio_queue.empty(), (
         f"audio queue is not empty: e.g. {audio_queue.get_nowait()}"
     )
@@ -214,15 +218,15 @@ async def convert_to_audio(frame_ids: list[int]) -> bytes | None:
     if n == 0:
         return None
 
-    arr = torch.tensor(frame_ids[: n * 7], dtype=torch.int32)
+    arr = torch.tensor(frame_ids[: n * 7], dtype=torch.int64)
     mat = arr.view(n, 7)
     codes_0 = mat[:, 0]
     codes_1 = mat[:, [1, 4]].reshape(-1)
     codes_2 = mat[:, [2, 3, 5, 6]].reshape(-1)
     if (
-        ((codes_0 < 0) | (codes_0 > 4096)).any()
-        or ((codes_1 < 0) | (codes_1 > 4096)).any()
-        or ((codes_2 < 0) | (codes_2 > 4096)).any()
+        ((codes_0 <= 0) | (codes_0 >= 4096)).any()
+        or ((codes_1 <= 0) | (codes_1 >= 4096)).any()
+        or ((codes_2 <= 0) | (codes_2 >= 4096)).any()
     ):
         logging.warning("Warn: Invalid token IDs detected, skipping audio generation.")
         return None

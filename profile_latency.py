@@ -7,6 +7,8 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Optional
 import statistics
+import json
+import random
 
 # Configuration
 SERVER_HOST = "localhost"
@@ -194,13 +196,13 @@ async def run_concurrent_requests(n: int, text: str):
     """Run n concurrent TTS requests."""
     # Create a single session for all requests to enable connection pooling
     async with aiohttp.ClientSession() as session:
-        # Warmup request
-        print("Running warmup request...")
-        warmup_result = await tts_request(session, "Doing warmup")
-        if warmup_result.success and warmup_result.ttfb:
-            print(f"Warmup complete: TTFB {warmup_result.ttfb:.3f}s")
-        else:
-            print(f"Warmup failed: {warmup_result.error}")
+        # # Warmup request
+        # print("Running warmup request...")
+        # warmup_result = await tts_request(session, "Doing warmup")
+        # if warmup_result.success and warmup_result.ttfb:
+        #     print(f"Warmup complete: TTFB {warmup_result.ttfb:.3f}s")
+        # else:
+        #     print(f"Warmup failed: {warmup_result.error}")
         
         # Run concurrent requests
         tasks = [tts_request(session, text) for _ in range(n)]
@@ -333,12 +335,12 @@ def aggregate_metrics(all_results: list[list[TTSMetrics]], concurrency_level: in
         print(f"  P95: {np.percentile(rtf_values, 95):.3f}")
         print(f"  (Lower is better; RTF < 1 means faster than real-time)")
     
-    # Per-run summary
-    print(f"\nPer-Run TTFB Summary:")
-    for i, run_results in enumerate(all_results):
-        run_ttfb = [r.ttfb for r in run_results if r.success and r.ttfb is not None]
-        if run_ttfb:
-            print(f"  Run {i+1}: Mean={np.mean(run_ttfb):.3f}s, Min={np.min(run_ttfb):.3f}s, Max={np.max(run_ttfb):.3f}s")
+    # # Per-run summary
+    # print(f"\nPer-Run TTFB Summary:")
+    # for i, run_results in enumerate(all_results):
+    #     run_ttfb = [r.ttfb for r in run_results if r.success and r.ttfb is not None]
+    #     if run_ttfb:
+    #         print(f"  Run {i+1}: Mean={np.mean(run_ttfb):.3f}s, Min={np.min(run_ttfb):.3f}s, Max={np.max(run_ttfb):.3f}s")
 
 
 def main():
@@ -348,17 +350,24 @@ def main():
 
     
     # Configuration
-    CONCURRENCY = 4
-    NUM_RUNS = 10
-    SLEEP_BETWEEN_RUNS = 2.0  # seconds
+    CONCURRENCY = 10
+    NUM_RUNS = 1000
+    SLEEP_BETWEEN_RUNS = 1.0  # seconds
     
     print(f"\nConfiguration:")
     print(f"  Concurrency Level: {CONCURRENCY}")
     print(f"  Number of Runs: {NUM_RUNS}")
     print(f"  Sleep Between Runs: {SLEEP_BETWEEN_RUNS}s")
     
-    # Test text - same as original
-    text = "How are you doing today? So happy to see you again today for the second time."
+    # Load texts from alphanumeric.jsonl
+    texts = []
+    with open('hallucination_eval/alphanumeric.jsonl', 'r') as f:
+        for line in f:
+            if line.strip():  # Skip empty lines
+                data = json.loads(line)
+                texts.append(data['text'])
+    
+    print(f"  Loaded {len(texts)} texts from alphanumeric.jsonl")
     
     # Create timestamp for this benchmark session
     from datetime import datetime
@@ -369,11 +378,17 @@ def main():
     
     # Collect results from all runs
     all_results = []
+
+    start_time = time.time()
     
     for run_num in range(1, NUM_RUNS + 1):
         print(f"\n{'='*60}")
         print(f"RUN {run_num}/{NUM_RUNS} - Concurrency: {CONCURRENCY}")
         print(f"{'='*60}")
+
+        # Select a random text for this run
+        text = random.choice(texts)
+        print(f"Using text: {text[:80]}..." if len(text) > 80 else f"Using text: {text}")
         
         # Run the concurrent requests
         results = asyncio.run(run_concurrent_requests(CONCURRENCY, text))
@@ -400,6 +415,9 @@ def main():
     
     # Print aggregate results
     aggregate_metrics(all_results, CONCURRENCY)
+
+    end_time = time.time()
+    print(f"\nTotal time taken: {end_time - start_time:.2f} seconds")
     
     print(f"\n{'='*80}")
     print(f"All audio files saved to: {session_dir}")
