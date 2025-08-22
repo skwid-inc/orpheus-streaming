@@ -19,4 +19,7 @@ api_benchmark_outputs/
 # Environment files
 .env
 .env.local
-.env.backupMiniconda3-latest-Linux-x86_64.sh
+.env.backup
+
+# Miniconda installer
+Miniconda3-latest-Linux-x86_64.sh
