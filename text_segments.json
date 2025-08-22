@@ -1,0 +1,311 @@
+{
+  "segments": [
+    {
+      "client": "100.64.0.21:51532",
+      "request_number": 1,
+      "text": "Hello, am I speaking with Brad Thompson?",
+      "length": 40,
+      "segment_id": "0eb435a74665",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.33:38226",
+      "request_number": 0,
+      "text": "(connection only - no text)",
+      "segment_id": null
+    },
+    {
+      "client": "100.64.0.24:49948",
+      "request_number": 1,
+      "text": "(end of stream marker - no text)",
+      "segment_id": null
+    },
+    {
+      "client": "100.64.0.24:49952",
+      "request_number": 1,
+      "text": "Hi I'm Taylor an AI assistant calling from Westlake Financial on a recorded line",
+      "length": 80,
+      "segment_id": "76b58ac6d4db",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.24:49952",
+      "request_number": 2,
+      "text": "Your account is currently past due with a balance of eighty-two thousand, five hundred and thirty-five dollars",
+      "length": 110,
+      "segment_id": "76b58ac6d4db",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.24:49952",
+      "request_number": 3,
+      "text": "Would you be able to make this payment today",
+      "length": 44,
+      "segment_id": "76b58ac6d4db",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.21:55214",
+      "request_number": 1,
+      "text": "Great",
+      "length": 5,
+      "segment_id": "767f96d2cb5d",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.21:55214",
+      "request_number": 2,
+      "text": "Let's proceed with the payment of eighty-two thousand, five hundred and thirty-five dollars today",
+      "length": 97,
+      "segment_id": "767f96d2cb5d",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.21:55214",
+      "request_number": 3,
+      "text": "Please hold on for a moment while I process this",
+      "length": 48,
+      "segment_id": "767f96d2cb5d",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.21:55214",
+      "request_number": 4,
+      "text": "- Would you like to use the Visa ending in nine one two three that you've used before to make your payment of eighty-two thousand, five hundred and thirty-five dollars today",
+      "length": 173,
+      "segment_id": "767f96d2cb5d",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.30:60966",
+      "request_number": 1,
+      "text": "Typing in these payment details now",
+      "length": 35,
+      "segment_id": "e12fad886984",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.30:60966",
+      "request_number": 2,
+      "text": "-",
+      "length": 1,
+      "segment_id": "e12fad886984",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.30:45610",
+      "request_number": 1,
+      "text": "Great",
+      "length": 5,
+      "segment_id": "a53601dfe102",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.30:45610",
+      "request_number": 2,
+      "text": "I'll read a quick disclaimer",
+      "length": 28,
+      "segment_id": "a53601dfe102",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.30:45610",
+      "request_number": 3,
+      "text": "Brad Thompson today on the twenty-first of August twenty twenty-five you are authorizing a payment in the amount of eighty-two thousand, five hundred and thirty-five dollars plus a five hundred and ninety-five dollars processing fee dated on the twenty-first of August twenty twenty-five using your Visa ending in nine one two three",
+      "length": 332,
+      "segment_id": "a53601dfe102",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.30:45610",
+      "request_number": 4,
+      "text": "By authorizing this payment you agree that you are the account holder or authorized user",
+      "length": 88,
+      "segment_id": "a53601dfe102",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.30:45610",
+      "request_number": 5,
+      "text": "Please say yes to proceed with your payment",
+      "length": 43,
+      "segment_id": "a53601dfe102",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.23:33578",
+      "request_number": 1,
+      "text": "Hello, am I speaking with Brad Thompson?",
+      "length": 40,
+      "segment_id": "94482a9e9dd6",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.22:55356",
+      "request_number": 1,
+      "text": "Hello, am I speaking with Brad Thompson?",
+      "length": 40,
+      "segment_id": "16ccc20b158a",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.21:51468",
+      "request_number": 1,
+      "text": "Hi, I'm Taylor, an AI assistant, calling from Westlake Financial on a recorded line.",
+      "length": 84,
+      "segment_id": "8a7d8b49d56b",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.21:51468",
+      "request_number": 2,
+      "text": "Your account is currently past due with a balance of eight hundred and twenty-five dollars and thirty-five cents.",
+      "length": 113,
+      "segment_id": "8a7d8b49d56b",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.21:51468",
+      "request_number": 3,
+      "text": "Would you be able to make this payment today?",
+      "length": 45,
+      "segment_id": "8a7d8b49d56b",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.21:40180",
+      "request_number": 1,
+      "text": "Great!",
+      "length": 6,
+      "segment_id": "ec73bc97b0ca",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.21:40180",
+      "request_number": 2,
+      "text": "Let's proceed with the payment of the total due amount of eight hundred and twenty-five dollars and thirty-five cents today.",
+      "length": 124,
+      "segment_id": "ec73bc97b0ca",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.21:40180",
+      "request_number": 3,
+      "text": "Please confirm if you'd like to continue with this payment.",
+      "length": 59,
+      "segment_id": "ec73bc97b0ca",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.24:47340",
+      "request_number": 1,
+      "text": "I'll just check that for you.",
+      "length": 29,
+      "segment_id": "c8deca02f048",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.24:47340",
+      "request_number": 2,
+      "text": "- Would you like to use the Visa ending in nine one two three that you've used before to make your payment of eight hundred and twenty-five dollars and thirty-five cents today?",
+      "length": 176,
+      "segment_id": "c8deca02f048",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.23:58624",
+      "request_number": 1,
+      "text": "Let me input that.",
+      "length": 18,
+      "segment_id": "5395f7a3af89",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.23:58624",
+      "request_number": 2,
+      "text": "-",
+      "length": 1,
+      "segment_id": "5395f7a3af89",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.22:44728",
+      "request_number": 1,
+      "text": "Great!",
+      "length": 6,
+      "segment_id": "690e72cf71af",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.22:44728",
+      "request_number": 2,
+      "text": "I'll read a quick disclaimer.",
+      "length": 29,
+      "segment_id": "690e72cf71af",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.22:44728",
+      "request_number": 3,
+      "text": "Brad Thompson, today, on the twenty-first of August, twenty twenty-five you are authorizing a payment in the amount of eight hundred and twenty-five dollars and thirty-five cents, plus a five dollars and ninety-five cents processing fee, dated on the twenty-first of August, twenty twenty-five using your Visa ending in nine one two three.",
+      "length": 339,
+      "segment_id": "690e72cf71af",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.22:44728",
+      "request_number": 4,
+      "text": "By authorizing this payment, you agree that you are the account holder or authorized user.",
+      "length": 90,
+      "segment_id": "690e72cf71af",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.22:44728",
+      "request_number": 5,
+      "text": "Please say yes to proceed with your payment.",
+      "length": 44,
+      "segment_id": "690e72cf71af",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.30:57010",
+      "request_number": 1,
+      "text": "Fake payment made.",
+      "length": 18,
+      "segment_id": "c5f1fe19eba9",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.30:57010",
+      "request_number": 2,
+      "text": "The confirmation number is one two three four. five six seven eight.",
+      "length": 68,
+      "segment_id": "c5f1fe19eba9",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.30:57010",
+      "request_number": 3,
+      "text": "Can I help you with anything else?",
+      "length": 34,
+      "segment_id": "c5f1fe19eba9",
+      "speaking_rate": "normal"
+    },
+    {
+      "client": "100.64.0.23:59110",
+      "request_number": 1,
+      "text": "How may I assist you further?",
+      "length": 29,
+      "segment_id": "5dc341056b8e",
+      "speaking_rate": "normal"
+    }
+  ],
+  "summary": {
+    "total_segments": 38,
+    "unique_segment_ids": 13,
+    "clients": 12,
+    "non_speakable_segments": 2,
+    "segment_id_reuse_warnings": 12
+  }
+}

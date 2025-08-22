@@ -12,7 +12,7 @@ load_dotenv()
 SERVER_HOST = "localhost"
 SERVER_PORT = "9090"
 BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
-TEST_TEXT = "Of course, we can schedule a payment for seven days from today, which would be next Friday, February twenty twenty-five."
+TEST_TEXT = "Brad Thompson, today, on the twenty-first of August, twenty twenty-five you are authorizing a payment in the amount of eight hundred and twenty-five dollars and thirty-five cents, plus a five dollars and ninety-five cents processing fee, dated on the twenty-first of August, twenty twenty-five using your Visa ending in nine one two three."
 # Voice parameter removed - model trained with voice=None
 NUM_RUNS = 5
 WARMUP_TEXT = "Doing warmup"

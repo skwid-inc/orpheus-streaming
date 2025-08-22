@@ -16,7 +16,7 @@ class OrpheusModelTRT:
         # Load sampling parameters from environment variables
         self.temperature = float(os.getenv("TRT_TEMPERATURE", 0.1))
         self.top_p = float(os.getenv("TRT_TOP_P", 0.95))
-        self.max_tokens = int(os.getenv("TRT_MAX_TOKENS", 1200))
+        self.max_tokens = int(os.getenv("TRT_MAX_TOKENS", 2000))
         self.repetition_penalty = float(os.getenv("TRT_REPETITION_PENALTY", 1.1))
         stop_token_ids_str = os.getenv("TRT_STOP_TOKEN_IDS", "128258")
         self.stop_token_ids = [int(token_id.strip()) for token_id in stop_token_ids_str.split(',')]

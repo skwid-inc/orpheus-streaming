@@ -1,0 +1,36 @@
+1. Hello, am I speaking with Brad Thompson?
+2. Hi I'm Taylor an AI assistant calling from Westlake Financial on a recorded line
+3. Your account is currently past due with a balance of eighty-two thousand, five hundred and thirty-five dollars
+4. Would you be able to make this payment today
+5. Great
+6. Let's proceed with the payment of eighty-two thousand, five hundred and thirty-five dollars today
+7. Please hold on for a moment while I process this
+8. - Would you like to use the Visa ending in nine one two three that you've used before to make your payment of eighty-two thousand, five hundred and thirty-five dollars today
+9. Typing in these payment details now
+10. -
+11. Great
+12. I'll read a quick disclaimer
+13. Brad Thompson today on the twenty-first of August twenty twenty-five you are authorizing a payment in the amount of eighty-two thousand, five hundred and thirty-five dollars plus a five hundred and ninety-five dollars processing fee dated on the twenty-first of August twenty twenty-five using your Visa ending in nine one two three
+14. By authorizing this payment you agree that you are the account holder or authorized user
+15. Please say yes to proceed with your payment
+16. Hello, am I speaking with Brad Thompson?
+17. Hello, am I speaking with Brad Thompson?
+18. Hi, I'm Taylor, an AI assistant, calling from Westlake Financial on a recorded line.
+19. Your account is currently past due with a balance of eight hundred and twenty-five dollars and thirty-five cents.
+20. Would you be able to make this payment today?
+21. Great!
+22. Let's proceed with the payment of the total due amount of eight hundred and twenty-five dollars and thirty-five cents today.
+23. Please confirm if you'd like to continue with this payment.
+24. I'll just check that for you.
+25. - Would you like to use the Visa ending in nine one two three that you've used before to make your payment of eight hundred and twenty-five dollars and thirty-five cents today?
+26. Let me input that.
+27. -
+28. Great!
+29. I'll read a quick disclaimer.
+30. Brad Thompson, today, on the twenty-first of August, twenty twenty-five you are authorizing a payment in the amount of eight hundred and twenty-five dollars and thirty-five cents, plus a five dollars and ninety-five cents processing fee, dated on the twenty-first of August, twenty twenty-five using your Visa ending in nine one two three.
+31. By authorizing this payment, you agree that you are the account holder or authorized user.
+32. Please say yes to proceed with your payment.
+33. Fake payment made.
+34. The confirmation number is one two three four. five six seven eight.
+35. Can I help you with anything else?
+36. How may I assist you further?
