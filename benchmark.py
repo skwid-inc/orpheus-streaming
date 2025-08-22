@@ -12,9 +12,9 @@ load_dotenv()
 SERVER_HOST = "localhost"
 SERVER_PORT = "9090"
 BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
-TEST_TEXT = "Of course, we can schedule a payment for seven days from today, which would be next Friday, February twenty twenty-five."
+TEST_TEXT = "Thank you!  I am going to read a quick disclosure for this payment. If you have any questions please hold them until I finish. On August twenty-first, twenty twenty five, you, Renita Brown Jr, are authorizing a one-time electronic transfer of thirty dollars that will typically be debited from your bank account ending in two zero zero seven within 2 business days of your payment date of August twenty-second, twenty twenty five. For questions or to cancel a payment please call the number on the back of the card. Do I have your permission to proceed with this request?"
 # Voice parameter removed - model trained with voice=None
-NUM_RUNS = 5
+NUM_RUNS = 1
 WARMUP_TEXT = "Doing warmup"
 OUTPUT_DIR = "outputs"
 
