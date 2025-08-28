@@ -13,10 +13,14 @@ from fastapi.responses import StreamingResponse
 from snac import SNAC
 from transformers import AutoTokenizer
 
-# Import the working decoder_v2
+# Import the working decoder_v2 and TTS modules
 import sys
-sys.path.append('/Users/pavan/skwid-inc/orpheus-streaming/baseten-deployment/src')
+import os
+# Add the src directory to the path (works both locally and in Baseten deployment)
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
 from decoder_v2 import tokens_decoder
+from trt_engine import OrpheusModelTRT
+from tts_with_timestamps import TTSWithTimestamps
 
 # force inference mode during the lifetime of the script
 _inference_mode_raii_guard = torch._C._InferenceMode(True)
@@ -156,6 +160,10 @@ class Model:
         self.start_id = [128259]
         self.end_ids = [128009, 128260]  # Fixed: removed extra tokens 128261, 128257
         self.text_splitter = pysbd.Segmenter(language="en", clean=False)
+        
+        # Initialize the TRT engine and TTS handler
+        self.orpheus_engine = OrpheusModelTRT()
+        self.tts_handler = TTSWithTimestamps(self.orpheus_engine)
 
     def load(self) -> None:
         self._tokenizer = AutoTokenizer.from_pretrained(
@@ -193,6 +201,10 @@ class Model:
             return self._format_prompt_slow(prompt)
 
     async def websocket(self, ws: WebSocket):
+        """Delegate to TTSWithTimestamps handler for proper websocket handling."""
+        await self.tts_handler.handle_websocket(ws)
+        
+    async def websocket_old(self, ws: WebSocket):
         # satisfy Truss’s metrics/cancellation wrapper
         async def _never_disconnected():
             return False

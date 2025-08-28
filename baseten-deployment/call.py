@@ -9,7 +9,7 @@ load_dotenv()
 
 API_KEY = "hyUQgCX6.l1DkdmprvdXOGHTuPFGXachilSKEyuqi"
 
-WS_URL = f"wss://model-rwnd64y3.api.baseten.co/deployment/wpyglew/websocket"
+WS_URL = f"wss://model-6wg9dk63.api.baseten.co/deployment/wpyglew/websocket"
 
 MAX_TOKENS = 2000
 BUFFER_SIZE = 10  # words / chunk
