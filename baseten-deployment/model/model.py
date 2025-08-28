@@ -154,7 +154,7 @@ class Model:
         self._tokenizer = None
         self.websocket_connections: dict[str, dict] = {}
         self.start_id = [128259]
-        self.end_ids = [128009, 128260, 128261, 128257]
+        self.end_ids = [128009, 128260]  # Fixed: removed extra tokens 128261, 128257
         self.text_splitter = pysbd.Segmenter(language="en", clean=False)
 
     def load(self) -> None:
@@ -176,7 +176,7 @@ class Model:
             adapted_prompt,
         )
         full_ids = self.start_id + input_ids + self.end_ids
-        return self._tokenizer.decode(full_ids)
+        return self._tokenizer.decode(full_ids, skip_special_tokens=False)
 
     def _format_prompt_fast(self, prompt):
         token_stream = self.start_tokenized
@@ -205,10 +205,10 @@ class Model:
         # 1) receive metadata
         params = await ws.receive_json()
         print(f"[ws:{sid}] metadata: {params!r}")
-        max_tokens = params.get("max_tokens", 6144)
+        max_tokens = params.get("max_tokens", 1200)  # Fixed: was 6144
         temperature = 0.1
-        top_p = params.get("top_p", 0.8)
-        rep_pen = params.get("repetition_penalty", 1.3)
+        top_p = params.get("top_p", 0.95)  # Fixed: was 0.8
+        rep_pen = params.get("repetition_penalty", 1.1)  # Fixed: was 1.3
         buf_sz = int(params.get("buffer_size", 10))
         print(f"buffer_size={buf_sz}")
 
