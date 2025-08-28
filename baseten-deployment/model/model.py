@@ -137,7 +137,7 @@ class Model:
 
     async def websocket(self, ws: WebSocket):
         """Delegate to TTSWithTimestamps handler for proper websocket handling."""
-        await self.tts_handler.handle_websocket(ws)
+        await self.websocket_old(ws)
         
     async def websocket_old(self, ws: WebSocket):
         # satisfy Truss’s metrics/cancellation wrapper
