@@ -10,8 +10,8 @@ from fastapi.responses import StreamingResponse
 from transformers import AutoTokenizer
 
 # Import the working decoder_v2 and TTS modules (now in the same directory)
-from .decoder_v2 import tokens_decoder
-from .tts_with_timestamps import TTSWithTimestamps
+from decoder_v2 import tokens_decoder
+from tts_with_timestamps import TTSWithTimestamps
 
 # force inference mode during the lifetime of the script
 _inference_mode_raii_guard = torch._C._InferenceMode(True)

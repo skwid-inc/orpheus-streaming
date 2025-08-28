@@ -12,7 +12,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 from typing import Optional, AsyncGenerator
 
-from .word_timestamps import WordTimestampGenerator
+from word_timestamps import WordTimestampGenerator
 
 logger = logging.getLogger(__name__)
 

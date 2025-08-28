@@ -23,6 +23,11 @@ requirements:
   - httpx
   - websockets
   - pysbd
+  - numpy
+  - transformers
+  - g2p-en
+  - fastapi
+  - starlette
 resources:
   accelerator: H100_40GB
   cpu: "1"
