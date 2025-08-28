@@ -14,27 +14,29 @@ model_metadata:
     voice: tara
   tags:
     - force-legacy-api-non-openai-compatible
-model_name: Salient-TTS
-python_version: py39
+model_name: Salient-TTS-v2
+python_version: py310
 requirements:
   - snac==1.2.1
-  - torch==2.7.0
+  - torch==2.6.0
   - batched==0.1.4
   - httpx
   - websockets
   - pysbd
   - numpy
-  - transformers
-  - g2p-en
+  - transformers==4.51.0
+  - g2p_en
   - fastapi
   - starlette
+  - aiohttp
+  - "uvicorn[standard]"
 resources:
   accelerator: H100_40GB
   cpu: "1"
   memory: 10Gi
   use_gpu: true
 secrets:
-  hf_access_token:
+  hf_access_token: "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"
 runtime:
   is_websocket_endpoint: true
   transport:
@@ -43,7 +45,7 @@ runtime:
     ping_timeout_seconds: null
 trt_llm:
   build:
-    base_model: llama
+    base_model: decoder
     checkpoint_repository:
       repo: TrySalient/tts-collections-test-verbalized
       revision: "main"
