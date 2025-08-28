@@ -1,19 +1,22 @@
-import asyncio
 import re
 import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Iterator, List
+from typing import Iterator
 
 import batched
-import numpy as np
 import pysbd
 import torch
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from snac import SNAC
 from transformers import AutoTokenizer
+
+# Import the working decoder_v2
+import sys
+sys.path.append('/Users/pavan/skwid-inc/orpheus-streaming/baseten-deployment/src')
+from decoder_v2 import tokens_decoder
 
 # force inference mode during the lifetime of the script
 _inference_mode_raii_guard = torch._C._InferenceMode(True)
@@ -116,92 +119,30 @@ class SnacModelBatched:
 model_snac = SnacModelBatched()
 
 
-def turn_token_into_id(token_string: int, index: int):
-    """Extract and convert the last custom token ID from a string."""
-    return token_string - 10 - ((index % 7) * 4096)
+# Commented out - using decoder_v2 instead
+# def turn_token_into_id(token_string: int, index: int):
+#     """Extract and convert the last custom token ID from a string."""
+#     return token_string - 10 - ((index % 7) * 4096)
 
 
-def split_custom_tokens(s: str) -> List[int]:
-    """
-    Extracts all substrings enclosed in <custom_token_…> from the input string.
-    """
-    matches = _TOKEN_RE.findall(s)
-    return [int(match) for match in matches if match != "0"]
+# def split_custom_tokens(s: str) -> List[int]:
+#     """
+#     Extracts all substrings enclosed in <custom_token_…> from the input string.
+#     """
+#     matches = _TOKEN_RE.findall(s)
+#     return [int(match) for match in matches if match != "0"]
 
 
-async def tokens_decoder(token_gen: Iterator, request_id: str = "") -> Iterator[bytes]:
-    """Decoder that pipelines convert_to_audio calls but enforces strict in-order yields."""
-    assert hasattr(token_gen, "__aiter__")
-    audio_queue = asyncio.Queue()
-
-    async def producer(token_gen: Iterator):
-        buffer: list[int] = []
-        count = 0
-        async for token_sim in token_gen:
-            for tok_str in split_custom_tokens(token_sim):
-                token = turn_token_into_id(int(tok_str), count)
-                buffer.append(token)
-                count += 1
-                # every 7 tokens → one frame; once we have at least 28 tokens, we extract the last 28
-                if count % 7 == 0 and count > 27:
-                    buf_to_proc = buffer[-28:]
-                    task = asyncio.create_task(convert_to_audio(buf_to_proc))
-                    audio_queue.put_nowait(task)
-        audio_queue.put_nowait(None)
-        print(f"Finished `{request_id}`, total tokens : {count}")
-
-    producer_task = asyncio.create_task(producer(token_gen))
-
-    while True:
-        # wait for the next audio conversion to finish
-        task: None | Awaitable[bytes | None] = await audio_queue.get()
-        if task is None:
-            break
-        audio_bytes = await task
-        if audio_bytes is not None:
-            yield audio_bytes
-        audio_queue.task_done()
-    assert audio_queue.empty(), (
-        f"audio queue is not empty: e.g. {audio_queue.get_nowait()}"
-    )
-    await producer_task
+# Using tokens_decoder from decoder_v2 instead
+async def tokens_decoder_baseten_wrapper(token_gen: Iterator, request_id: str = "") -> Iterator[bytes]:
+    """Wrapper to call decoder_v2's tokens_decoder with Baseten's signature."""
+    # decoder_v2's tokens_decoder accepts optional request_id and start_time parameters
+    async for audio_chunk in tokens_decoder(token_gen, request_id=request_id):
+        yield audio_chunk
 
 
-@torch.inference_mode()
-async def convert_to_audio(frame_ids: list[int]) -> bytes | None:
-    """Convert a list of token IDs into audio bytes efficiently.
-
-    frame_ids:
-    - list of token IDS (phonemes) of length 28 or less.
-    - 7 tokens = 1 frame
-    """
-    n = len(frame_ids) // 7
-    if n == 0:
-        return None
-
-    arr = torch.tensor(frame_ids[: n * 7], dtype=torch.int32)
-    mat = arr.view(n, 7)
-    codes_0 = mat[:, 0]
-    codes_1 = mat[:, [1, 4]].reshape(-1)
-    codes_2 = mat[:, [2, 3, 5, 6]].reshape(-1)
-    if (
-        ((codes_0 < 0) | (codes_0 > 4096)).any()
-        or ((codes_1 < 0) | (codes_1 > 4096)).any()
-        or ((codes_2 < 0) | (codes_2 > 4096)).any()
-    ):
-        print("Warn: Invalid token IDs detected, skipping audio generation.")
-        return None
-    with torch.cuda.stream(PREPROCESS_STREAM):
-        codes = [
-            codes_0.unsqueeze(0).to(SNAC_DEVICE),
-            codes_1.unsqueeze(0).to(SNAC_DEVICE),
-            codes_2.unsqueeze(0).to(SNAC_DEVICE),
-        ]
-        PREPROCESS_STREAM.synchronize()  # only queue codes that are ready
-    audio_hat = await model_snac.batch_snac_model.acall({"codes": codes})
-    audio_np = audio_hat.numpy(force=True)
-    audio_bytes = (audio_np * 32767).astype(np.int16).tobytes()
-    return audio_bytes
+# Commented out - using decoder_v2's implementation
+# The rest of the local decoder implementation is replaced by decoder_v2
 
 
 class Model:
@@ -316,7 +257,7 @@ class Model:
                 tokgen = tokgen.body_iterator
 
             sent = 0
-            async for audio in tokens_decoder(tokgen, sid):
+            async for audio in tokens_decoder_baseten_wrapper(tokgen, sid):
                 sent += len(audio)
                 # print(f"[ws:{sid}] sending {len(audio)} bytes (total {sent})")
                 await ws.send_bytes(audio)
@@ -340,7 +281,6 @@ class Model:
                 self.websocket_connections[sid]["text_buffer"].extend(
                     text.strip().split()
                 )
-                current = len(self.websocket_connections[sid]["text_buffer"])
 
                 # flush in chunks
                 await flush()
