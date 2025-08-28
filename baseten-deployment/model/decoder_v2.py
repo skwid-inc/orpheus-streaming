@@ -16,7 +16,7 @@ import threading
 import logging
 
 # force inference mode during the lifetime of the script
-_inference_mode_raii_guard = torch._C._InferenceMode(True)
+# _inference_mode_raii_guard = torch._C._InferenceMode(True)  # Already set in model.py
 # torch.backends.cuda.matmul.allow_tf32 = True
 
 # TODO(veer/michael): test decoder with bfloat16
