@@ -9,13 +9,9 @@ from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from transformers import AutoTokenizer
 
-# Import the working decoder_v2 and TTS modules
-import sys
-import os
-# Add the src directory to the path (works both locally and in Baseten deployment)
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
-from decoder_v2 import tokens_decoder
-from tts_with_timestamps import TTSWithTimestamps
+# Import the working decoder_v2 and TTS modules (now in the same directory)
+from .decoder_v2 import tokens_decoder
+from .tts_with_timestamps import TTSWithTimestamps
 
 # force inference mode during the lifetime of the script
 _inference_mode_raii_guard = torch._C._InferenceMode(True)

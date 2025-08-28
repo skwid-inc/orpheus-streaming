@@ -9,7 +9,9 @@ load_dotenv()
 
 API_KEY = "hyUQgCX6.l1DkdmprvdXOGHTuPFGXachilSKEyuqi"
 
-WS_URL = f"wss://model-6wg9dk63.api.baseten.co/deployment/wpyglew/websocket"
+MODEL_ID = "rwnd64y3"
+
+WS_URL = f"wss://model-{MODEL_ID}.api.baseten.co/environments/production/websocket"
 
 MAX_TOKENS = 2000
 BUFFER_SIZE = 10  # words / chunk
@@ -74,7 +76,7 @@ async def stream_tts(text: str):
 
 if __name__ == "__main__":
     sample = (
-        "I'm calling regarding your Chase account ending in eight six one three, that is currently past due with an amount due of eighty six dollars"
+        "I'm calling regarding your Chase account ending in eight six one three."
     )
 
     async def main():
