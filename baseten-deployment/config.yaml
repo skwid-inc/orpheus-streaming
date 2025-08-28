@@ -34,7 +34,7 @@ resources:
   memory: 10Gi
   use_gpu: true
 secrets:
-  hf_access_token:
+  hf_access_token: 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
 runtime:
   is_websocket_endpoint: true
   transport:

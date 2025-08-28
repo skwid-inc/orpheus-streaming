@@ -9,7 +9,15 @@ from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from transformers import AutoTokenizer
 
-# Import the working decoder_v2 and TTS modules (now in the same directory)
+# Import the working decoder_v2 and TTS modules
+import sys
+import os
+
+# Add the model directory to Python path so we can import our modules
+model_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, model_dir)
+
+# Now import our modules
 from decoder_v2 import tokens_decoder
 from tts_with_timestamps import TTSWithTimestamps
 
