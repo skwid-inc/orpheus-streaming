@@ -9,9 +9,8 @@ load_dotenv()
 
 API_KEY = "hyUQgCX6.l1DkdmprvdXOGHTuPFGXachilSKEyuqi"
 
-WS_URL = "wss://model-6wg9dk63.api.baseten.co/environments/production/sync/v1"
+WS_URL = "wss://model-rwnd64y3.api.baseten.co/deployment/32mze9q/websocket"
 
-VOICE = "tara"
 MAX_TOKENS = 2000
 BUFFER_SIZE = 10  # words / chunk
 SAMPLE_RATE = 24000
@@ -33,7 +32,6 @@ async def stream_tts(text: str):
                 # send metadata once
                 await ws.send_json(
                     {
-                        "voice": VOICE,
                         "max_tokens": MAX_TOKENS,
                         "buffer_size": BUFFER_SIZE,
                     }
@@ -75,8 +73,7 @@ async def stream_tts(text: str):
 
 if __name__ == "__main__":
     sample = (
-        "Nothing beside remains. Round the decay of that colossal wreck, "
-        "boundless and bare, The lone and level sands stretch far away."
+        "I'm calling regarding your Chase account ending in eight six one three that is currently past due with an amount due of eighty six dollars"
     )
 
     async def main():

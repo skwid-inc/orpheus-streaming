@@ -226,35 +226,30 @@ class Model:
         self.end_tokenized = self._tokenizer.decode(self.end_ids)
 
         self.use_fast_fmt = self._format_prompt_fast(
-            "hello world", "tara"
-        ) == self._format_prompt_slow("hello world", "tara")
+            "hello world"
+        ) == self._format_prompt_slow("hello world")
 
-    def _format_prompt_slow(self, prompt, voice="tara"):
-        if voice:
-            adapted_prompt = f"{voice}: {prompt}"
-        else:
-            adapted_prompt = prompt
+    def _format_prompt_slow(self, prompt):
+        adapted_prompt = prompt
         input_ids = self._tokenizer.encode(
             adapted_prompt,
         )
         full_ids = self.start_id + input_ids + self.end_ids
         return self._tokenizer.decode(full_ids)
 
-    def _format_prompt_fast(self, prompt, voice="tara"):
+    def _format_prompt_fast(self, prompt):
         token_stream = self.start_tokenized
-        if voice:
-            token_stream += f"{voice}: "
         token_stream += prompt
         token_stream += self.end_tokenized
         return token_stream
 
-    def format_prompt(self, prompt: str, voice="tara"):
+    def format_prompt(self, prompt: str):
         """Format the prompt for the model."""
         if self.use_fast_fmt:
-            return self._format_prompt_fast(prompt, voice)
+            return self._format_prompt_fast(prompt)
         else:
             print("Warn: Using slow format")
-            return self._format_prompt_slow(prompt, voice)
+            return self._format_prompt_slow(prompt)
 
     async def websocket(self, ws: WebSocket):
         # satisfy Truss’s metrics/cancellation wrapper
@@ -269,13 +264,12 @@ class Model:
         # 1) receive metadata
         params = await ws.receive_json()
         print(f"[ws:{sid}] metadata: {params!r}")
-        voice = params.get("voice", "tara")
         max_tokens = params.get("max_tokens", 6144)
-        temperature = params.get("temperature", 0.6)
+        temperature = 0.1
         top_p = params.get("top_p", 0.8)
         rep_pen = params.get("repetition_penalty", 1.3)
         buf_sz = int(params.get("buffer_size", 10))
-        print(f" → voice={voice}, buffer_size={buf_sz}")
+        print(f"buffer_size={buf_sz}")
 
         # initialize per-sid state
         self.websocket_connections[sid] = {
@@ -309,8 +303,7 @@ class Model:
 
             inp = {
                 "request_id": sid,
-                "prompt": self.format_prompt(prompt, voice),
-                "voice": voice,
+                "prompt": self.format_prompt(prompt),
                 "max_tokens": max_tokens,
                 "temperature": temperature,
                 "top_p": top_p,
