@@ -16,7 +16,7 @@ import threading
 import logging
 
 # force inference mode during the lifetime of the script
-# _inference_mode_raii_guard = torch._C._InferenceMode(True)  # Already set in model.py
+_inference_mode_raii_guard = torch._C._InferenceMode(True)
 # torch.backends.cuda.matmul.allow_tf32 = True
 
 # TODO(veer/michael): test decoder with bfloat16
@@ -133,14 +133,9 @@ def split_custom_tokens(s: str) -> List[int]:
 
 
 async def tokens_decoder(
-    token_gen: Iterator, request_id: str = None, start_time: int = None
+    token_gen: Iterator, request_id: str, start_time: int
 ) -> Iterator[bytes]:
     """Decoder that pipelines convert_to_audio calls but enforces strict in-order yields."""
-    if not request_id:
-        request_id = str(uuid.uuid4())
-    if not start_time:
-        start_time = time.time()
-        
     assert hasattr(token_gen, "__aiter__")
     audio_queue = asyncio.Queue()
 
@@ -148,25 +143,11 @@ async def tokens_decoder(
         buffer: list[int] = []
         count = 0
         tft = 0
-        # Track previous token list to support cumulative streaming outputs
-        prev_tokens_list: list[int] = []
         async for token_sim in token_gen:
             if tft == 0:
                 tft = time.time()
-            tokens_list = split_custom_tokens(token_sim)
-            # If cumulative stream, current list should have previous as prefix
-            if len(tokens_list) >= len(prev_tokens_list) and tokens_list[: len(prev_tokens_list)] == prev_tokens_list:
-                new_tokens = tokens_list[len(prev_tokens_list) :]
-            else:
-                # Treat as delta or reset
-                new_tokens = tokens_list
-            prev_tokens_list = tokens_list
-
-            for tok_val in new_tokens:
-                token = turn_token_into_id(int(tok_val), count)
-                # Skip invalid/negative/out-of-range tokens early
-                if token is None or token <= 0 or token >= 4096:
-                    continue
+            for tok_str in split_custom_tokens(token_sim):
+                token = turn_token_into_id(int(tok_str), count)
                 buffer.append(token)
                 count += 1
                 # every 7 tokens → one frame; once we have at least 28 tokens, we extract the last 28
@@ -192,14 +173,10 @@ async def tokens_decoder(
         task: None | Awaitable[bytes | None] = await audio_queue.get()
         if task is None:
             break
-        try:
-            audio_bytes = await task
-            if audio_bytes is not None:
-                yield audio_bytes
-        except Exception as e:
-            logging.exception("convert_to_audio task failed", exc_info=e)
-        finally:
-            audio_queue.task_done()
+        audio_bytes = await task
+        if audio_bytes is not None:
+            yield audio_bytes
+        audio_queue.task_done()
     assert audio_queue.empty(), (
         f"audio queue is not empty: e.g. {audio_queue.get_nowait()}"
     )
@@ -218,15 +195,15 @@ async def convert_to_audio(frame_ids: list[int]) -> bytes | None:
     if n == 0:
         return None
 
-    arr = torch.tensor(frame_ids[: n * 7], dtype=torch.int64)
+    arr = torch.tensor(frame_ids[: n * 7], dtype=torch.int32)
     mat = arr.view(n, 7)
     codes_0 = mat[:, 0]
     codes_1 = mat[:, [1, 4]].reshape(-1)
     codes_2 = mat[:, [2, 3, 5, 6]].reshape(-1)
     if (
-        ((codes_0 <= 0) | (codes_0 >= 4096)).any()
-        or ((codes_1 <= 0) | (codes_1 >= 4096)).any()
-        or ((codes_2 <= 0) | (codes_2 >= 4096)).any()
+        ((codes_0 < 0) | (codes_0 > 4096)).any()
+        or ((codes_1 < 0) | (codes_1 > 4096)).any()
+        or ((codes_2 < 0) | (codes_2 > 4096)).any()
     ):
         logging.warning("Warn: Invalid token IDs detected, skipping audio generation.")
         return None
@@ -242,3 +219,108 @@ async def convert_to_audio(frame_ids: list[int]) -> bytes | None:
     audio_bytes = (audio_np * 32767).astype(np.int16).tobytes()
     return audio_bytes
 
+
+class Model:
+    def __init__(self, trt_llm, **kwargs) -> None:
+        self._secrets = kwargs["secrets"]
+        self._engine = trt_llm["engine"]
+        self._data_dir = kwargs["data_dir"]
+        self._model = None
+        self._tokenizer = None
+        self.start_id = [128259]
+        self.end_ids = [128009, 128260, 128261, 128257]
+
+    def load(self) -> None:
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            Path(self._data_dir) / "tokenization"
+        )
+        self.start_tokenized = (
+            self._tokenizer.decode(self.start_id) + self._tokenizer.bos_token
+        )
+        self.end_tokenized = self._tokenizer.decode(self.end_ids)
+
+        self.use_fast_fmt = self._format_prompt_fast(
+            "hello world", "tara"
+        ) == self._format_prompt_slow("hello world", "tara")
+
+    def _format_prompt_slow(self, prompt, voice="tara"):
+        voice = None
+        if voice:
+            adapted_prompt = f"{voice}: {prompt}"
+        else:
+            adapted_prompt = prompt
+        input_ids = self._tokenizer.encode(
+            adapted_prompt,
+        )
+        full_ids = self.start_id + input_ids + self.end_ids
+        return self._tokenizer.decode(full_ids)
+
+    def _format_prompt_fast(self, prompt, voice="tara"):
+        voice = None
+        token_stream = self.start_tokenized
+        if voice:
+            token_stream += f"{voice}: "
+        token_stream += prompt
+        token_stream += self.end_tokenized
+        return token_stream
+
+    def format_prompt(self, prompt: str, voice="tara"):
+        """Format the prompt for the model."""
+        if self.use_fast_fmt:
+            return self._format_prompt_fast(prompt, voice)
+        else:
+            logging.warning("Warn: Using slow format")
+            return self._format_prompt_slow(prompt, voice)
+
+    async def predict(
+        self, model_input: Any, request: fastapi.Request
+    ) -> StreamingResponse:
+        try:
+            req_id = str(model_input.get("request_id", uuid.uuid4()))
+            model_input["prompt"] = self.format_prompt(
+                model_input["prompt"], voice=model_input.get("voice", "tara")
+            )
+            input_length = len(model_input["prompt"])
+            logging.info(
+                f"Starting request_id {req_id} with input length {input_length}"
+            )
+            if input_length > MAX_CHARACTERS_INPUT:
+                return Response(
+                    (
+                        f"Your suggested prompt is too long (len: {input_length}), max length is {MAX_CHARACTERS_INPUT} characters."
+                        "To generate audio faster, please split your request into multiple prompts. "
+                    ),
+                    status_code=400,
+                )
+            model_input["temperature"] = 0.1
+            model_input["top_p"] = 0.95
+            model_input["max_tokens"] = 2500
+            if model_input.get("end_id") is not None:
+                logging.info(
+                    "Not using end_id from model_input:", model_input["end_id"]
+                )
+            model_input["end_id"] = 128258
+            # model_input["pad_id"] = model_input.get("end_id", [128004]) automatically infered  from AutoTokenizer.from_file(..).pad_token
+            model_input["repetition_penalty"] = 1.1
+            start_time = time.time()
+
+            async def audio_stream(req_id: str):
+                token_gen = await self._engine.predict(model_input, request)
+
+                if isinstance(token_gen, StreamingResponse):
+                    token_gen = token_gen.body_iterator
+
+                async for chunk in tokens_decoder(token_gen, req_id, start_time):
+                    yield chunk
+
+            return StreamingResponse(
+                audio_stream(req_id),
+                media_type="audio/wav",
+                headers={"X-Baseten-Input-Tokens": str(input_length)},
+            )
+        except Exception as e:
+            print(f"Error in request_id {req_id}: {e} with input {model_input}")
+            return Response(
+                f"An internal server error occurred while processing your request {req_id}",
+                status_code=500,
+            )
