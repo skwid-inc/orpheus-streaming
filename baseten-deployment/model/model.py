@@ -1,16 +1,12 @@
-import re
-import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Iterator
 
-import batched
 import pysbd
 import torch
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
-from snac import SNAC
 from transformers import AutoTokenizer
 
 # Import the working decoder_v2 and TTS modules
@@ -19,108 +15,14 @@ import os
 # Add the src directory to the path (works both locally and in Baseten deployment)
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
 from decoder_v2 import tokens_decoder
-from trt_engine import OrpheusModelTRT
 from tts_with_timestamps import TTSWithTimestamps
 
 # force inference mode during the lifetime of the script
 _inference_mode_raii_guard = torch._C._InferenceMode(True)
 # torch.backends.cuda.matmul.allow_tf32 = True
 
-_TOKEN_RE = re.compile(r"<custom_token_(\d+)>")
-SNAC_DEVICE = "cuda"
-SNAC_MAX_BATCH = 64
-PREPROCESS_STREAM = torch.Stream(SNAC_DEVICE)
-
-
-class SnacModelBatched:
-    def __init__(self):
-        self.dtype_decoder = torch.float32
-        compile_background = False
-        use_compile = True
-        model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
-        model = model.to(SNAC_DEVICE)
-
-        model.decoder = model.decoder.to(self.dtype_decoder)
-
-        self.snac_model = model
-        self.stream = torch.Stream()
-        if use_compile:
-            if compile_background:
-                # Compile the model in a separate thread, experimental.
-                threading.Thread(target=self.compile, daemon=True).start()
-            else:
-                # Compile the model in the main thread
-                self.compile()
-
-    def compile(self):
-        model = self.snac_model
-        # Compile the model with torch.compile
-        decoder = torch.compile(model.decoder, dynamic=True)
-        quantizer = torch.compile(model.quantizer, dynamic=True)
-        t = time.time()
-        print("starting torch.compile")
-        for bs_size in range(1, max(SNAC_MAX_BATCH, 1)):
-            codes = [
-                torch.randint(1, 4096, (bs_size, 4)).to(SNAC_DEVICE),
-                torch.randint(1, 4096, (bs_size, 8)).to(SNAC_DEVICE),
-                torch.randint(1, 4096, (bs_size, 16)).to(SNAC_DEVICE),
-            ]
-            with torch.inference_mode():
-                intermed = quantizer.from_codes(codes)
-                decoder(intermed.to(self.dtype_decoder))
-        print("finish time for torch.compile:", time.time() - t)
-        self.snac_model.decoder = decoder
-        self.snac_model.quantizer = quantizer
-
-    @batched.dynamically(batch_size=SNAC_MAX_BATCH, timeout_ms=15)
-    def batch_snac_model(
-        self, items: list[dict[str, list[torch.Tensor]]]
-    ) -> list[torch.Tensor]:
-        # Custom processing logic here
-        # return [model.decode(item["codes"]) for item in items]
-        if len(items) == SNAC_MAX_BATCH:
-            print("batch size is max:", len(items))
-        with torch.inference_mode(), torch.cuda.stream(self.stream):
-            all_codes = [codes["codes"] for codes in items]
-            can_be_batched = len(items) > 1 and all(
-                codes[0].shape == all_codes[0][0].shape for codes in all_codes
-            )
-            if can_be_batched:
-                # stacked_codes = [(b,4), (b,8), (b,16)]
-                stacked_codes: tuple[torch.Tensor, torch.Tensor, torch.Tensor] = [
-                    torch.cat(  # codes is list[torch.Tensor]
-                        [item[i] for item in all_codes], dim=0
-                    )
-                    for i in range(3)
-                ]
-                stacked_z_q = self.snac_model.quantizer.from_codes(stacked_codes)
-                output_batched = self.snac_model.decoder(
-                    stacked_z_q.to(self.dtype_decoder)
-                )[:, :, 2048:4096].to(torch.float32)
-
-                out = output_batched.split(
-                    1, dim=0
-                )  # unbatch the output into len(items) tensors of shape (1, 1, x)
-            else:
-                # items can't be batched
-                if len(items) > 1:
-                    # items can't cant be concatenated (no padding)
-                    print(f"running unbatched at size {len(items)}")
-                # if we have a single item, we need to do the same thing as above
-                # but without concatenating
-                out: list[torch.Tensor] = []
-                for codes in all_codes:
-                    stacked_z_q = self.snac_model.quantizer.from_codes(codes)
-                    out.append(
-                        self.snac_model.decoder(stacked_z_q.to(self.dtype_decoder))[
-                            :, :, 2048:4096
-                        ].to(torch.float32)
-                    )
-            self.stream.synchronize()  # make sure the results are ready
-            return out
-
-
-model_snac = SnacModelBatched()
+# Removed duplicate SnacModelBatched class and model_snac instance
+# These are already defined in decoder_v2.py which we're importing
 
 
 # Commented out - using decoder_v2 instead
@@ -149,6 +51,39 @@ async def tokens_decoder_baseten_wrapper(token_gen: Iterator, request_id: str = 
 # The rest of the local decoder implementation is replaced by decoder_v2
 
 
+class BasetenEngineAdapter:
+    """Adapter to make Baseten's engine compatible with TTSWithTimestamps"""
+    
+    def __init__(self, baseten_engine, model_instance):
+        self.engine = baseten_engine
+        self.model = model_instance
+    
+    async def generate_speech_async(self, prompt):
+        """Generate speech using Baseten's engine and decoder_v2"""
+        # Format the prompt using Model's format_prompt method
+        formatted_prompt = self.model.format_prompt(prompt)
+        
+        # Create the input for Baseten's engine
+        inp = {
+            "request_id": str(uuid.uuid4()),
+            "prompt": formatted_prompt,
+            "max_tokens": 1200,  # Using our fixed values
+            "temperature": 0.1,
+            "top_p": 0.95,
+            "repetition_penalty": 1.1,
+            "end_id": 128258,
+        }
+        
+        # Get token generator from Baseten's engine
+        tokgen = await self.engine.predict(inp)
+        if isinstance(tokgen, StreamingResponse):
+            tokgen = tokgen.body_iterator
+        
+        # Use decoder_v2 to convert tokens to audio
+        async for audio_chunk in tokens_decoder(tokgen):
+            yield audio_chunk
+
+
 class Model:
     def __init__(self, trt_llm, **kwargs) -> None:
         self._secrets = kwargs["secrets"]
@@ -161,9 +96,9 @@ class Model:
         self.end_ids = [128009, 128260]  # Fixed: removed extra tokens 128261, 128257
         self.text_splitter = pysbd.Segmenter(language="en", clean=False)
         
-        # Initialize the TRT engine and TTS handler
-        self.orpheus_engine = OrpheusModelTRT()
-        self.tts_handler = TTSWithTimestamps(self.orpheus_engine)
+        # We'll initialize these after loading when we have the tokenizer
+        self.orpheus_engine = None
+        self.tts_handler = None
 
     def load(self) -> None:
         self._tokenizer = AutoTokenizer.from_pretrained(
@@ -177,6 +112,10 @@ class Model:
         self.use_fast_fmt = self._format_prompt_fast(
             "hello world"
         ) == self._format_prompt_slow("hello world")
+        
+        # Initialize the engine adapter and TTS handler after tokenizer is loaded
+        self.orpheus_engine = BasetenEngineAdapter(self._engine, self)
+        self.tts_handler = TTSWithTimestamps(self.orpheus_engine)
 
     def _format_prompt_slow(self, prompt):
         adapted_prompt = prompt
