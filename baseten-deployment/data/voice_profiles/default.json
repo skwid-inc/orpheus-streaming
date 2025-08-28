@@ -1,0 +1,20 @@
+{
+  "ms_per_phone": 78.0,
+  "pause_priors_ms": {
+    "none": 0,
+    "comma": 160,
+    "period": 320,
+    "question": 360,
+    "exclaim": 320,
+    "colon": 200,
+    "semicolon": 140
+  },
+  "min_word_ms": 100,
+  "speed_factors": {
+    "slow": 1.15,
+    "normal": 1.0,
+    "fast": 0.85
+  },
+  "guard_ms": 60,
+  "rescale_interval_ms": 300
+}
