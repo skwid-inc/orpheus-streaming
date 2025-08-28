@@ -11,7 +11,9 @@ API_KEY = "hyUQgCX6.l1DkdmprvdXOGHTuPFGXachilSKEyuqi"
 
 MODEL_ID = "rwnd64y3"
 
-WS_URL = f"wss://model-{MODEL_ID}.api.baseten.co/environments/production/websocket"
+# WS_URL = f"wss://model-{MODEL_ID}.api.baseten.co/environments/production/websocket"
+
+WS_URL = "wss://model-rwnd64y3.api.baseten.co/deployment/w76d2d3/websocket"
 
 MAX_TOKENS = 2000
 BUFFER_SIZE = 10  # words / chunk
