@@ -22,7 +22,6 @@ prompt_types = ["short", "medium", "long"]
 
 base_request_payload = {
     "max_tokens": 4096,
-    "voice": "tara",
     "stop_token_ids": [128258, 128009],
 }
 
