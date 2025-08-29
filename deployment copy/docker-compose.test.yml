@@ -1,0 +1,29 @@
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: orpheus-nginx-test
+    ports:
+      - "18081:8080"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - test-server-0
+      - test-server-1
+    networks:
+      - test_net
+
+  test-server-0: &test_base
+    image: kennethreitz/httpbin
+    environment:
+      - PORT=9090
+    networks:
+      - test_net
+
+  test-server-1:
+    <<: *test_base
+    environment:
+      - PORT=9091
+
+networks:
+  test_net:
+    driver: bridge

@@ -1,0 +1,63 @@
+# Git files
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+orpheus/
+.venv*/
+venv*/
+env*/
+ENV*/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs and outputs
+logs/
+outputs/
+*.log
+
+# Model cache and weights (will be downloaded at runtime)
+model.cache
+*.safetensors
+*.bin
+*.onnx
+*.engine
+
+# Documentation
+*.md
+docs/
+
+# Test files
+test_*.py
+benchmark.py
+profile_*.py
+
+# Environment files
+# .env is included for Docker build
+.env.*
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# HuggingFace cache (will be created at runtime)
+/workspace/hf

@@ -1,0 +1,152 @@
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: orpheus-nginx
+    depends_on:
+      - orpheus-tts-0
+      - orpheus-tts-1
+      - orpheus-tts-2
+      - orpheus-tts-3
+      - orpheus-tts-4
+      - orpheus-tts-5
+      - orpheus-tts-6
+      - orpheus-tts-7
+    ports:
+      - "18080:8080"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+    networks:
+      - orpheus_net
+
+  orpheus-tts-0: &tts_base
+    image: 308804103509.dkr.ecr.us-west-2.amazonaws.com/orpheus-tts:latest
+    runtime: nvidia
+    env_file:
+      - ../.env
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
+      - PORT=9090
+    volumes:
+      - orpheus_hf_cache:/workspace/hf
+      - ../logs/tts-0:/app/logs
+      - ../outputs/tts-0:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - orpheus_net
+
+  orpheus-tts-1:
+    <<: *tts_base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=1
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
+      - PORT=9091
+    volumes:
+      - orpheus_hf_cache:/workspace/hf
+      - ../logs/tts-1:/app/logs
+      - ../outputs/tts-1:/app/outputs
+
+  orpheus-tts-2:
+    <<: *tts_base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=2
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
+      - PORT=9092
+    volumes:
+      - orpheus_hf_cache:/workspace/hf
+      - ../logs/tts-2:/app/logs
+      - ../outputs/tts-2:/app/outputs
+
+  orpheus-tts-3:
+    <<: *tts_base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=3
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
+      - PORT=9093
+    volumes:
+      - orpheus_hf_cache:/workspace/hf
+      - ../logs/tts-3:/app/logs
+      - ../outputs/tts-3:/app/outputs
+
+  orpheus-tts-4:
+    <<: *tts_base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=4
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
+      - PORT=9094
+    volumes:
+      - orpheus_hf_cache:/workspace/hf
+      - ../logs/tts-4:/app/logs
+      - ../outputs/tts-4:/app/outputs
+
+  orpheus-tts-5:
+    <<: *tts_base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=5
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
+      - PORT=9095
+    volumes:
+      - orpheus_hf_cache:/workspace/hf
+      - ../logs/tts-5:/app/logs
+      - ../outputs/tts-5:/app/outputs
+
+  orpheus-tts-6:
+    <<: *tts_base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=6
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
+      - PORT=9096
+    volumes:
+      - orpheus_hf_cache:/workspace/hf
+      - ../logs/tts-6:/app/logs
+      - ../outputs/tts-6:/app/outputs
+
+  orpheus-tts-7:
+    <<: *tts_base
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=7
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
+      - PORT=9097
+    volumes:
+      - orpheus_hf_cache:/workspace/hf
+      - ../logs/tts-7:/app/logs
+      - ../outputs/tts-7:/app/outputs
+
+volumes:
+  orpheus_hf_cache:
+    driver: local
+
+networks:
+  orpheus_net:
+    driver: bridge
+
