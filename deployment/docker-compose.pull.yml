@@ -1,0 +1,206 @@
+services:
+  # Init container to extract nginx config from packaged image
+  nginx-config-init:
+    image: 308804103509.dkr.ecr.us-west-2.amazonaws.com/orpheus-tts:packaged
+    container_name: nginx-config-init
+    volumes:
+      - nginx_config:/shared/
+    command: ["sh", "-c", "cp /etc/nginx/nginx.conf.template /shared/nginx.conf && echo 'Nginx config extracted'"]
+    networks:
+      - orpheus_net
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: orpheus-nginx
+    depends_on:
+      - nginx-config-init
+      - orpheus-tts-0
+      - orpheus-tts-1
+      - orpheus-tts-2
+      - orpheus-tts-3
+      - orpheus-tts-4
+      - orpheus-tts-5
+      - orpheus-tts-6
+      - orpheus-tts-7
+    ports:
+      - "8080:8080"  # NGINX accessible on host port 8080
+    volumes:
+      - nginx_config:/etc/nginx/
+    restart: unless-stopped
+    networks:
+      - orpheus_net
+
+  orpheus-tts-0: &tts_base
+    image: 308804103509.dkr.ecr.us-west-2.amazonaws.com/orpheus-tts:packaged
+    ports:
+      - "9090:9090"  # Expose to host
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PORT=9090
+    volumes:
+      - ../logs/tts-0:/app/logs
+      - ../outputs/tts-0:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+    networks:
+      - orpheus_net
+
+  orpheus-tts-1:
+    <<: *tts_base
+    ports:
+      - "9091:9091"  # Expose to host
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=1
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PORT=9091
+    volumes:
+      - ../logs/tts-1:/app/logs
+      - ../outputs/tts-1:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["1"]
+              capabilities: [gpu]
+
+  orpheus-tts-2:
+    <<: *tts_base
+    ports:
+      - "9092:9092"  # Expose to host
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=2
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PORT=9092
+    volumes:
+
+      - ../logs/tts-2:/app/logs
+      - ../outputs/tts-2:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["2"]
+              capabilities: [gpu]
+
+  orpheus-tts-3:
+    <<: *tts_base
+    ports:
+      - "9093:9093"  # Expose to host
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=3
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PORT=9093
+    volumes:
+
+      - ../logs/tts-3:/app/logs
+      - ../outputs/tts-3:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["3"]
+              capabilities: [gpu]
+
+  orpheus-tts-4:
+    <<: *tts_base
+    ports:
+      - "9094:9094"  # Expose to host
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=4
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PORT=9094
+    volumes:
+
+      - ../logs/tts-4:/app/logs
+      - ../outputs/tts-4:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["4"]
+              capabilities: [gpu]
+
+  orpheus-tts-5:
+    <<: *tts_base
+    ports:
+      - "9095:9095"  # Expose to host
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=5
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PORT=9095
+    volumes:
+
+      - ../logs/tts-5:/app/logs
+      - ../outputs/tts-5:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["5"]
+              capabilities: [gpu]
+
+  orpheus-tts-6:
+    <<: *tts_base
+    ports:
+      - "9096:9096"  # Expose to host
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=6
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PORT=9096
+    volumes:
+
+      - ../logs/tts-6:/app/logs
+      - ../outputs/tts-6:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["6"]
+              capabilities: [gpu]
+
+  orpheus-tts-7:
+    <<: *tts_base
+    ports:
+      - "9097:9097"  # Expose to host
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=7
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PORT=9097
+    volumes:
+
+      - ../logs/tts-7:/app/logs
+      - ../outputs/tts-7:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["7"]
+              capabilities: [gpu]
+
+volumes:
+  nginx_config:
+    driver: local
+
+networks:
+  orpheus_net:
+    driver: bridge
