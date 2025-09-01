@@ -66,9 +66,58 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /app/logs /app/outputs /workspace/hf
 
-# Set base environment variables
+# Ensure Hugging Face cache is set before any downloads so all assets land in /workspace/hf
 ENV HF_HOME=/workspace/hf \
-    TRANSFORMERS_OFFLINE=0
+    HUGGINGFACE_HUB_CACHE=/workspace/hf/hub
+
+# Set default model name for build and runtime
+ENV MODEL_NAME=TrySalient/tts-collections-test-verbalized
+
+# === NEW: PACKAGE THE MODEL IN THE IMAGE ===
+# Set HuggingFace token for model download during build (optional)
+ARG HF_TOKEN
+ENV HF_TOKEN=${HF_TOKEN}
+
+# Create a Python script for model snapshot downloads (ensures proper refs/snapshots)
+RUN echo 'import os\n\
+from huggingface_hub import login, snapshot_download\n\
+\n\
+if os.getenv("HF_TOKEN"):\n\
+    login(token=os.getenv("HF_TOKEN"))\n\
+\n\
+cache_dir = os.getenv("HUGGINGFACE_HUB_CACHE", "/workspace/hf/hub")\n\
+model_name = os.getenv("MODEL_NAME", "TrySalient/tts-collections-test-verbalized")\n\
+print(f"Using cache_dir: {cache_dir}")\n\
+print(f"Downloading snapshot for {model_name}...")\n\
+snapshot_download(repo_id=model_name, cache_dir=cache_dir, local_files_only=False)\n\
+print("Downloading snapshot for hubertsiuzdak/snac_24khz...")\n\
+snapshot_download(repo_id="hubertsiuzdak/snac_24khz", cache_dir=cache_dir, local_files_only=False)\n\
+print("All model snapshots downloaded!")' > /tmp/download_model.py && python3 /tmp/download_model.py
+
+# === NEW: INCLUDE NGINX CONFIG IN IMAGE ===
+# Copy nginx config to a standard location in the image
+COPY nginx.conf /etc/nginx/nginx.conf.template
+
+# Set environment variables for offline mode
+ENV TRANSFORMERS_OFFLINE=1 \
+    HF_HUB_OFFLINE=1
+
+# Default runtime parameters (overridable at runtime)
+ENV TRT_TEMPERATURE=0.1 \
+    TRT_TOP_P=0.95 \
+    TRT_MAX_TOKENS=2500 \
+    TRT_REPETITION_PENALTY=1.1 \
+    TRT_STOP_TOKEN_IDS=128258 \
+    TRT_DTYPE=bfloat16 \
+    TRT_MAX_INPUT_LEN=1024 \
+    TRT_MAX_BATCH_SIZE=16 \
+    TRT_MAX_SEQ_LEN=4096 \
+    TRT_ENABLE_CHUNKED_PREFILL=True \
+    TRT_MAX_BEAM_WIDTH=1 \
+    TRT_MAX_NUM_TOKENS=16384 \
+    TRT_FREE_GPU_MEMORY_FRACTION=0.85 \
+    TRT_KV_CACHE_MAX_TOKENS=512 \
+    LOG_LEVEL=INFO
 
 # MPI and TensorRT-LLM configuration
 ENV OMPI_MCA_mpi_yield_when_idle=1 \
