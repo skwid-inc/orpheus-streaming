@@ -277,6 +277,23 @@ class Model:
     ) -> StreamingResponse:
         try:
             req_id = str(model_input.get("request_id", uuid.uuid4()))
+            # Follow the non-speakable exclusion from tts_with_timestamps.py
+            _NON_SPEAKABLE_RE = re.compile(r"^\s*[-–—.,;:!?…·•*#_/\\()\[\]{}'\"|~`^]+\s*$")
+
+            def _is_speakable(text_val: str) -> bool:
+                if not text_val or not text_val.strip():
+                    return False
+                if _NON_SPEAKABLE_RE.match(text_val):
+                    return False
+                return any(ch.isalnum() for ch in text_val)
+
+            raw_prompt = str(model_input.get("prompt", ""))
+            if not _is_speakable(raw_prompt):
+                logging.info(
+                    f"Excluding non-speakable prompt for request_id {req_id}: '{raw_prompt}'"
+                )
+                # No content for non-speakable prompts (prevents hallucinations)
+                return Response(status_code=204)
             model_input["prompt"] = self.format_prompt(
                 model_input["prompt"], voice=model_input.get("voice", "tara")
             )
